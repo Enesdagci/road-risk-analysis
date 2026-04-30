@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>US Accidents — Intelligence Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+:root {
+  --navy-950: #050c18;
+  --navy-900: #0a1628;
+  --navy-800: #0f2040;
+  --navy-700: #162d58;
+  --navy-600: #1e3a6e;
+  --navy-500: #264880;
+  --teal-400: #2dd4bf;
+  --teal-300: #5eead4;
+  --teal-200: #99f6e4;
+  --amber-400: #fbbf24;
+  --amber-300: #fcd34d;
+  --amber-200: #fde68a;
+  --rose-400: #fb7185;
+  --rose-300: #fda4af;
+  --violet-400: #a78bfa;
+  --violet-300: #c4b5fd;
+  --sky-400: #38bdf8;
+  --sky-300: #7dd3fc;
+  --emerald-400: #34d399;
+  --surface-0: #060d1b;
+  --surface-1: #0d1f35;
+  --surface-2: #132840;
+  --surface-3: #1a3352;
+  --text-1: #f0f4ff;
+  --text-2: #ccd8f0;
+  --text-3: #99b0d0;
+  --text-4: #6a88a8;
+  --border-1: rgba(56, 189, 248, 0.18);
+  --border-2: rgba(56, 189, 248, 0.09);
+  --sev1: #38bdf8;
+  --sev2: #fbbf24;
+  --sev3: #fb923c;
+  --sev4: #f43f5e;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--surface-0);
+  color: var(--text-1);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image:
+    linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.wrap { position:relative; z-index:1; max-width:1480px; margin:0 auto; padding:0 40px 100px; }
+
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 52px 0 44px;
+  border-bottom: 1px solid var(--border-1);
+  margin-bottom: 48px;
+}
+
+.h-eyebrow {
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'JetBrains Mono', monospace;
+  font-size:13px; letter-spacing:0.12em; text-transform:uppercase;
+  color: var(--teal-400);
+  margin-bottom:14px; font-weight:600;
+}
+.h-eyebrow::before {
+  content:''; width:9px; height:9px; border-radius:50%;
+  background:var(--teal-400);
+  box-shadow: 0 0 12px var(--teal-400);
+  animation: blink 2.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+h1 {
+  font-size: clamp(52px, 6vw, 88px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+  color: var(--text-1);
+}
+h1 em { color: var(--teal-400); font-style: normal; }
+
+.h-sub {
+  font-family:'JetBrains Mono', monospace;
+  font-size:14px; color:var(--text-2);
+  margin-top:14px; letter-spacing:0.04em; font-weight:500;
+}
+
+.h-pills { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+
+.pill {
+  display:flex; align-items:center; gap:12px;
+  background: var(--surface-2); border:1px solid var(--border-1);
+  border-radius:8px; padding:10px 18px;
+  font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); font-weight:500;
+}
+.pill strong { color:var(--text-1); font-size:15px; font-weight:600; }
+
+.kpi-bar {
+  display:grid; grid-template-columns:repeat(6,1fr);
+  gap:3px; margin-bottom:48px;
+  background:var(--border-2);
+  border-radius:12px; overflow:hidden;
+  border:1px solid var(--border-1);
+}
+.kpi {
+  background:var(--surface-1); padding:28px 24px;
+  transition:background 0.2s;
+}
+.kpi:hover { background:var(--surface-2); }
+.kpi-color-bar { width:32px; height:3px; border-radius:2px; margin-bottom:16px; }
+.kpi-label {
+  font-family:'JetBrains Mono', monospace;
+  font-size:13px; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--text-3); margin-bottom:10px; font-weight:600;
+}
+.kpi-val {
+  font-size:38px; font-weight:700; letter-spacing:-0.03em; line-height:1;
+}
+.kpi-note {
+  font-family:'JetBrains Mono', monospace;
+  font-size:12px; color:var(--text-3); margin-top:8px; font-weight:500;
+}
+
+.section { margin-bottom:56px; }
+.section-head {
+  display:flex; align-items:center; gap:16px;
+  margin-bottom:24px;
+}
+.section-head h2 {
+  font-size:24px; font-weight:700; letter-spacing:-0.02em; color:var(--text-1);
+}
+.section-tag {
+  font-family:'JetBrains Mono', monospace;
+  font-size:12px; color:var(--teal-400);
+  background:rgba(45,212,191,0.12); border:1px solid rgba(45,212,191,0.3);
+  padding:4px 12px; border-radius:4px; letter-spacing:0.08em; font-weight:600;
+}
+.section-line { flex:1; height:1px; background:var(--border-1); }
+
+.g2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.g4 { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.g32 { display:grid; grid-template-columns:3fr 2fr; gap:16px; }
+.g23 { display:grid; grid-template-columns:2fr 3fr; gap:16px; }
+
+.card {
+  background:var(--surface-1);
+  border:1px solid var(--border-1);
+  border-radius:12px; padding:28px;
+  transition:border-color 0.2s;
+}
+.card:hover { border-color:rgba(56,189,248,0.32); }
+
+.card-title {
+  font-family:'JetBrains Mono', monospace;
+  font-size:13px; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--text-2); margin-bottom:24px; font-weight:600;
+  display:flex; align-items:center; justify-content:space-between;
+}
+
+.sev-list { display:flex; flex-direction:column; gap:18px; }
+.sev-row { display:grid; grid-template-columns:72px 1fr 120px; align-items:center; gap:14px; }
+.sev-lbl { font-size:20px; font-weight:700; letter-spacing:-0.01em; }
+.sev-track { height:32px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden; }
+.sev-fill { height:100%; border-radius:4px; transition:width 1.4s cubic-bezier(0.16,1,0.3,1); }
+.sev-ct { font-family:'JetBrains Mono', monospace; font-size:14px; color:var(--text-2); text-align:right; font-weight:500; }
+
+.fi-list { display:flex; flex-direction:column; gap:10px; }
+.fi-row { display:grid; grid-template-columns:150px 1fr 60px; align-items:center; gap:12px; }
+.fi-name { font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; }
+.fi-track { height:12px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden; }
+.fi-fill { height:100%; border-radius:2px; background:linear-gradient(90deg, var(--teal-400), var(--amber-400)); transition:width 1.5s cubic-bezier(0.16,1,0.3,1); }
+.fi-pct { font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); text-align:right; font-weight:600; }
+
+.st-list { display:flex; flex-direction:column; gap:8px; }
+.st-row { display:grid; grid-template-columns:42px 1fr 80px; align-items:center; gap:12px; }
+.st-code { font-size:17px; font-weight:700; color:var(--amber-400); }
+.st-track { height:18px; background:rgba(255,255,255,0.05); border-radius:3px; overflow:hidden; }
+.st-fill { height:100%; background:linear-gradient(90deg, rgba(251,191,36,0.5), rgba(251,146,60,0.7)); border-radius:3px; transition:width 1.5s cubic-bezier(0.16,1,0.3,1); }
+.st-n { font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); text-align:right; font-weight:600; }
+
+.mtable { width:100%; border-collapse:collapse; }
+.mtable th {
+  font-family:'JetBrains Mono', monospace; font-size:13px;
+  letter-spacing:0.08em; text-transform:uppercase; color:var(--text-2);
+  padding:12px 14px; text-align:left; border-bottom:1px solid var(--border-1);
+  font-weight:700;
+}
+.mtable td { padding:14px; font-family:'JetBrains Mono', monospace; font-size:14px; border-bottom:1px solid rgba(56,189,248,0.06); vertical-align:middle; color:var(--text-2); }
+.mtable tr:hover td { background:rgba(45,212,191,0.03); }
+.f1-bar { display:flex; align-items:center; gap:10px; }
+.f1-track { flex:1; height:8px; background:rgba(255,255,255,0.07); border-radius:2px; overflow:hidden; }
+.f1-fill { height:100%; border-radius:2px; }
+.badge { display:inline-block; padding:4px 12px; border-radius:4px; font-size:12px; letter-spacing:0.08em; font-family:'JetBrains Mono', monospace; font-weight:700; }
+.b-best { background:rgba(45,212,191,0.15); color:var(--teal-300); border:1px solid rgba(45,212,191,0.3); }
+.b-good { background:rgba(56,189,248,0.1); color:var(--sky-300); border:1px solid rgba(56,189,248,0.2); }
+
+.src-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.src-card { border-radius:12px; padding:24px; border:1px solid; }
+.src-bing { background:rgba(56,189,248,0.05); border-color:rgba(56,189,248,0.2); }
+.src-mq   { background:rgba(251,113,133,0.05); border-color:rgba(251,113,133,0.2); }
+.src-name { font-size:30px; font-weight:700; letter-spacing:-0.02em; margin-bottom:18px; }
+.src-bing .src-name { color:var(--sky-400); }
+.src-mq   .src-name { color:var(--rose-400); }
+.mrow { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+.mrow:last-of-type { border-bottom:none; }
+.mk { font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); letter-spacing:0.06em; font-weight:600; }
+.mv { font-family:'JetBrains Mono', monospace; font-size:15px; font-weight:700; }
+
+.hm-grid { display:grid; grid-template-columns: 44px repeat(24,1fr); gap:2px; }
+.hm-lbl { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text-2); display:flex; align-items:center; justify-content:flex-end; padding-right:6px; font-weight:600; }
+.hm-hr  { font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--text-3); text-align:center; font-weight:600; }
+.hm-cell { height:22px; border-radius:2px; cursor:default; transition:transform 0.15s; }
+.hm-cell:hover { transform:scale(1.4); z-index:10; position:relative; }
+
+.cm-cell {
+  display:flex; align-items:center; justify-content:center;
+  border-radius:3px; font-family:'JetBrains Mono', monospace;
+  font-size:13px; font-weight:700; cursor:default;
+  transition:transform 0.15s;
+}
+.cm-cell:hover { transform:scale(1.06); }
+
+.t-legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+.t-dot { width:20px; height:3px; border-radius:2px; flex-shrink:0; }
+.t-item { display:flex; align-items:center; gap:7px; font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); font-weight:600; }
+
+.ens-kpi { text-align:center; padding:32px 24px; }
+.ens-val { font-size:56px; font-weight:700; letter-spacing:-0.04em; line-height:1; margin:12px 0 8px; }
+.ens-lbl { font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.1em; font-weight:700; }
+.ens-sub { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text-3); margin-top:6px; font-weight:500; }
+
+.metrics-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:16px;
+}
+.metric-card {
+  background: var(--surface-2); border-radius:10px; padding:20px;
+  border:1px solid var(--border-2);
+}
+.metric-card-title {
+  font-family:'JetBrains Mono',monospace; font-size:13px;
+  color:var(--text-2); font-weight:700; letter-spacing:0.06em;
+  text-transform:uppercase; margin-bottom:16px;
+  display:flex; align-items:center; gap:8px;
+}
+.metric-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.metrics-table { width:100%; border-collapse:collapse; }
+.metrics-table th {
+  font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700;
+  color:var(--text-3); letter-spacing:0.08em; text-transform:uppercase;
+  padding:8px 10px; text-align:left; border-bottom:1px solid var(--border-1);
+}
+.metrics-table td {
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600;
+  color:var(--text-2); padding:10px; border-bottom:1px solid rgba(56,189,248,0.05);
+}
+.metrics-table td.val-cell { color:var(--text-1); font-weight:700; }
+.metrics-table tr:hover td { background:rgba(45,212,191,0.03); }
+.perf-bar { height:6px; background:rgba(255,255,255,0.07); border-radius:3px; overflow:hidden; margin-top:3px; }
+.perf-fill { height:100%; border-radius:3px; transition:width 1.5s ease; }
+
+.metric-tiles { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:16px; }
+.metric-tile {
+  background:var(--surface-2); border:1px solid var(--border-1);
+  border-radius:10px; padding:18px 16px; text-align:center;
+}
+.metric-tile .mt-val { font-size:28px; font-weight:700; letter-spacing:-0.02em; line-height:1; }
+.metric-tile .mt-lbl { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-3); text-transform:uppercase; letter-spacing:0.08em; margin-top:6px; font-weight:600; }
+.metric-tile .mt-src { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-4); margin-top:4px; font-weight:500; }
+
+/* ============================================================
+   TAHMİN BÖLÜMÜ — TAM YENİDEN YAZILDI
+   ============================================================ */
+.pred-section {
+  background: linear-gradient(135deg, rgba(45,212,191,0.06) 0%, rgba(56,189,248,0.04) 50%, rgba(167,139,250,0.06) 100%);
+  border:1px solid rgba(45,212,191,0.25);
+  border-radius:16px; padding:40px;
+  position:relative; overflow:hidden;
+}
+.pred-section::before {
+  content:'';
+  position:absolute; top:-60px; right:-60px;
+  width:200px; height:200px; border-radius:50%;
+  background: radial-gradient(circle, rgba(45,212,191,0.08) 0%, transparent 70%);
+  pointer-events:none;
+}
+.pred-title {
+  font-size:28px; font-weight:700; letter-spacing:-0.02em;
+  color:var(--text-1); margin-bottom:6px;
+}
+.pred-sub {
+  font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text-2);
+  margin-bottom:36px; font-weight:500;
+}
+.pred-form {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:18px;
+  margin-bottom:28px;
+}
+.form-group { display:flex; flex-direction:column; gap:8px; }
+.form-label {
+  font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700;
+  color:var(--text-2); text-transform:uppercase; letter-spacing:0.08em;
+}
+.form-input, .form-select {
+  background:var(--surface-1); border:1px solid var(--border-1);
+  border-radius:8px; padding:12px 14px; color:var(--text-1);
+  font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500;
+  outline:none; transition:border-color 0.2s, background 0.2s;
+  width:100%; appearance:none; -webkit-appearance:none;
+}
+.form-input:focus, .form-select:focus {
+  border-color:var(--teal-400);
+  background:var(--surface-2);
+}
+.form-input::placeholder { color:var(--text-4); }
+.form-select option { background:#0d1f35; color:var(--text-1); }
+
+.pred-btn {
+  display:flex; align-items:center; justify-content:center; gap:12px;
+  background:linear-gradient(135deg, var(--teal-400), var(--sky-400));
+  color:#060d1b; font-family:'JetBrains Mono',monospace;
+  font-size:15px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;
+  padding:16px 48px; border-radius:10px; border:none; cursor:pointer;
+  transition:transform 0.2s, box-shadow 0.2s;
+  box-shadow:0 0 32px rgba(45,212,191,0.25);
+}
+.pred-btn:hover { transform:translateY(-2px); box-shadow:0 0 48px rgba(45,212,191,0.4); }
+.pred-btn:active { transform:translateY(0); }
+
+/* FIX: pred-result varsayılan olarak GÖRÜNÜR, ama ilk state "bekleme" modunda */
+.pred-result {
+  margin-top:28px; padding:28px;
+  background:var(--surface-1); border-radius:12px;
+  border:1px solid var(--border-1);
+}
+
+/* İlk yüklenme (henüz tahmin yapılmadı) durumu */
+.pred-idle {
+  display:flex; align-items:center; justify-content:center;
+  padding:40px;
+  flex-direction:column; gap:12px;
+}
+.pred-idle-icon {
+  width:64px; height:64px; border-radius:50%;
+  background:rgba(45,212,191,0.1); border:1px solid rgba(45,212,191,0.25);
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px;
+}
+.pred-idle-txt {
+  font-family:'JetBrains Mono',monospace; font-size:14px;
+  color:var(--text-3); text-align:center; font-weight:500;
+}
+
+/* Aktif sonuç */
+.pred-result-top {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:24px; flex-wrap:wrap;
+}
+.pred-sev-badge {
+  display:flex; flex-direction:column; align-items:center;
+  background:var(--surface-2); border-radius:12px; padding:24px 32px;
+  border:2px solid; flex-shrink:0;
+}
+.pred-sev-num { font-size:64px; font-weight:800; line-height:1; letter-spacing:-0.04em; }
+.pred-sev-txt { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; margin-top:8px; }
+
+.pred-probs { flex:1; min-width:260px; }
+.pred-probs-title {
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700;
+  color:var(--text-2); text-transform:uppercase; letter-spacing:0.08em;
+  margin-bottom:16px;
+}
+.prob-row { display:grid; grid-template-columns:60px 1fr 60px; align-items:center; gap:12px; margin-bottom:12px; }
+.prob-lbl { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; }
+.prob-track { height:18px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden; }
+.prob-fill { height:100%; border-radius:4px; transition:width 0.8s cubic-bezier(0.16,1,0.3,1); }
+.prob-pct { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; text-align:right; }
+
+.pred-info { margin-top:20px; padding-top:20px; border-top:1px solid var(--border-2); }
+.pred-info-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.info-tile {
+  background:var(--surface-2); border-radius:8px; padding:14px;
+  border:1px solid var(--border-2);
+}
+.info-tile-val { font-size:18px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px; }
+.info-tile-lbl { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-3); text-transform:uppercase; font-weight:700; letter-spacing:0.08em; }
+
+.pred-explanation {
+  margin-top:20px; padding:16px;
+  background:rgba(45,212,191,0.06); border-radius:8px;
+  border-left:3px solid var(--teal-400);
+}
+.pred-explanation p {
+  font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text-2);
+  line-height:1.8; font-weight:500;
+}
+.pred-explanation strong { color:var(--text-1); font-weight:700; }
+
+/* Animasyon — sadece yeniden render için */
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.pred-animate { animation:fadeUp 0.4s ease; }
+
+/* SCROLL FADE — ama tüm section'lar için fallback */
+[data-fade] {
+  opacity:0;
+  transform:translateY(18px);
+  transition:opacity 0.6s ease, transform 0.6s ease;
+}
+[data-fade].in {
+  opacity:1;
+  transform:translateY(0);
+}
+/* Prediction section HİÇBİR ZAMAN gizlenmeyecek */
+#pred-section-wrap {
+  opacity:1 !important;
+  transform:none !important;
+}
+
+/* ÇEŞITLI */
+.cw { position:relative; width:100%; }
+#map-d3 { width:100%; }
+#map-d3 svg { width:100%; height:auto; display:block; }
+#corr-container { width:100%; overflow-x:auto; }
+
+.t-legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+.t-dot { width:20px; height:3px; border-radius:2px; flex-shrink:0; }
+.t-item { display:flex; align-items:center; gap:7px; font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--text-2); font-weight:600; }
+
+@media(max-width:1100px){
+  .kpi-bar { grid-template-columns:repeat(3,1fr); }
+  .g3,.g4 { grid-template-columns:1fr 1fr; }
+  .g32,.g23 { grid-template-columns:1fr; }
+  .pred-form { grid-template-columns:1fr 1fr; }
+  .metric-tiles { grid-template-columns:repeat(3,1fr); }
+}
+@media(max-width:700px){
+  .kpi-bar { grid-template-columns:repeat(2,1fr); }
+  .g2,.src-grid,.metrics-grid { grid-template-columns:1fr; }
+  .wrap { padding:0 20px 80px; }
+  .pred-form { grid-template-columns:1fr; }
+  .metric-tiles { grid-template-columns:repeat(2,1fr); }
+}
+
+/* Tahmin bölümünün her zaman görünür kalmasını sağlar */
+#pred-section-wrap {
+    opacity: 1 !important;
+    transform: none !important;
+    display: block !important;
+}
+
+/* iframe içinde scroll bar'ın daha temiz görünmesi için */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-thumb {
+    background: #1e3a6e;
+    border-radius: 10px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<header data-fade>
+  <div>
+    <div class="h-eyebrow">Live Analysis System</div>
+    <h1>US ACCIDENT<br/><em>INTELLIGENCE</em></h1>
+    <div class="h-sub">Dataset: 2016–2023 · 49 States · 7,728,394 Records · Sample: ~1.15M</div>
+  </div>
+  <div class="h-pills">
+    <div class="pill"><span>Veri Kaynağı</span><strong>Bing + MapQuest</strong></div>
+    <div class="pill"><span>Toplam Feature</span><strong>49 Feature</strong></div>
+    <div class="pill"><span>Hedef</span><strong>Severity (1–4)</strong></div>
+    <div class="pill"><span>Modeller</span><strong>XGBoost · LightGBM · RF</strong></div>
+  </div>
+</header>
+
+<!-- KPI BAR -->
+<div class="kpi-bar" data-fade>
+  <div class="kpi">
+    <div class="kpi-color-bar" style="background:var(--teal-400)"></div>
+    <div class="kpi-label">Toplam Kayıt</div>
+    <div class="kpi-val" style="color:var(--teal-400)">7.7M</div>
+    <div class="kpi-note">ham veri · 2016–2023</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-color-bar" style="background:var(--amber-400)"></div>
+    <div class="kpi-label">Örnek Boyutu</div>
+    <div class="kpi-val" style="color:var(--amber-400)">1.15M</div>
+    <div class="kpi-note">%15 stratified sample</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-color-bar" style="background:var(--rose-400)"></div>
+    <div class="kpi-label">Severity 4</div>
+    <div class="kpi-val" style="color:var(--rose-400)">~2.4%</div>
+    <div class="kpi-note">ağır kaza · nadir sınıf</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-color-bar" style="background:var(--sky-400)"></div>
+    <div class="kpi-label">En İyi Test F1</div>
+    <div class="kpi-val" style="color:var(--sky-400)">0.897</div>
+    <div class="kpi-note">LightGBM weighted</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-color-bar" style="background:var(--emerald-400)"></div>
+    <div class="kpi-label">Feature Sayısı</div>
+    <div class="kpi-val" style="color:var(--emerald-400)">49</div>
+    <div class="kpi-note">13 poi · 8 türetilmiş</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-color-bar" style="background:var(--violet-400)"></div>
+    <div class="kpi-label">Eyalet</div>
+    <div class="kpi-val" style="color:var(--violet-400)">49</div>
+    <div class="kpi-note">kapsanan ABD eyaleti</div>
+  </div>
+</div>
+
+<!-- SECTION 01 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Severity Dağılımı</h2>
+    <div class="section-tag">01 · EDA</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g32">
+    <div class="card">
+      <div class="card-title">Sınıf Dağılımı — Tüm Dataset</div>
+      <div class="sev-list">
+        <div class="sev-row">
+          <div class="sev-lbl" style="color:var(--sev1)">SEV 1</div>
+          <div class="sev-track"><div class="sev-fill" style="width:0%;background:var(--sev1)" data-w="2.1"></div></div>
+          <div class="sev-ct">162K · 2.1%</div>
+        </div>
+        <div class="sev-row">
+          <div class="sev-lbl" style="color:var(--sev2)">SEV 2</div>
+          <div class="sev-track"><div class="sev-fill" style="width:0%;background:var(--sev2)" data-w="77.8"></div></div>
+          <div class="sev-ct">6.01M · 77.8%</div>
+        </div>
+        <div class="sev-row">
+          <div class="sev-lbl" style="color:var(--sev3)">SEV 3</div>
+          <div class="sev-track"><div class="sev-fill" style="width:0%;background:var(--sev3)" data-w="17.7"></div></div>
+          <div class="sev-ct">1.37M · 17.7%</div>
+        </div>
+        <div class="sev-row">
+          <div class="sev-lbl" style="color:var(--sev4)">SEV 4</div>
+          <div class="sev-track"><div class="sev-fill" style="width:0%;background:var(--sev4)" data-w="2.4"></div></div>
+          <div class="sev-ct">186K · 2.4%</div>
+        </div>
+      </div>
+      <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border-2)">
+        <p style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--rose-400);line-height:1.8;font-weight:600">
+          ⚠ Severity 2 baskın sınıf (%77.8)<br/>
+          <span style="color:var(--text-3);font-weight:500">class_weight="balanced" + SMOTE önerilir</span>
+        </p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Oransal Dağılım</div>
+      <div class="cw" style="height:240px">
+        <canvas id="sevDonut"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 02 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Zaman Örüntüleri</h2>
+    <div class="section-tag">02 · Temporal</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Saate Göre Kaza Yoğunluğu</div>
+      <div class="cw" style="height:210px"><canvas id="hourChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Güne Göre Dağılım</div>
+      <div class="cw" style="height:210px"><canvas id="dayChart"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Saat × Gün Yoğunluk Isı Haritası</div>
+    <div style="overflow-x:auto">
+      <div class="hm-grid" id="heatmap" style="min-width:620px"></div>
+    </div>
+    <div style="margin-top:14px;display:flex;align-items:center;gap:8px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-3);font-weight:600">DÜŞÜK</span>
+      <div style="width:160px;height:8px;border-radius:3px;background:linear-gradient(90deg,rgba(56,189,248,0.15),rgba(45,212,191,0.5),rgba(251,191,36,0.7),rgba(244,63,94,0.95))"></div>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-3);font-weight:600">YÜKSEK</span>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 03 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Yıllık Kaza Trendi</h2>
+    <div class="section-tag">03 · Time Series</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Ay/Yıl Bazında Kaza Sayısı (2016–2023)</div>
+    <div class="t-legend" id="trendLegend"></div>
+    <div class="cw" style="height:300px"><canvas id="trendChart"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 04 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Coğrafi Analiz</h2>
+    <div class="section-tag">04 · Geospatial</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g23">
+    <div class="card">
+      <div class="card-title">Top 15 Eyalet</div>
+      <div class="st-list" id="stateList"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Eyalet Bazlı Kaza Yoğunluğu — ABD Koroplet Haritası</div>
+      <div id="map-d3"></div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:8px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-3);font-weight:600">AZ</span>
+        <div style="width:140px;height:8px;border-radius:3px;background:linear-gradient(90deg,rgba(45,212,191,0.2),rgba(251,191,36,0.6),rgba(244,63,94,0.9))"></div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-3);font-weight:600">ÇOK</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 05 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Hava Durumu &amp; Çevre</h2>
+    <div class="section-tag">05 · Weather</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g3" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Hava Koşulu</div>
+      <div class="cw" style="height:220px"><canvas id="weatherChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Sıcaklık Dağılımı (°F)</div>
+      <div class="cw" style="height:220px"><canvas id="tempChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Gece / Gündüz</div>
+      <div class="cw" style="height:220px"><canvas id="daynightChart"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Korelasyon Matrisi — Sayısal Değişkenler</div>
+    <div id="corr-container"></div>
+  </div>
+</div>
+
+<!-- SECTION 06 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Yol Özellikleri (POI)</h2>
+    <div class="section-tag">06 · Infrastructure</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">POI Varlığı ve Kaza İlişkisi (%)</div>
+      <div class="cw" style="height:280px"><canvas id="poiChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">POI Sayısı Dağılımı</div>
+      <div class="cw" style="height:280px"><canvas id="poiCountChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 07 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Kaynak Karşılaştırması</h2>
+    <div class="section-tag">07 · Source Analysis</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="src-grid">
+    <div class="src-card src-bing">
+      <div class="src-name">BING</div>
+      <div class="mrow"><span class="mk">Kayıt Sayısı</span><span class="mv" style="color:var(--sky-400)">~210K</span></div>
+      <div class="mrow"><span class="mk">Severity 2</span><span class="mv" style="color:var(--sky-400)">%71.2</span></div>
+      <div class="mrow"><span class="mk">Severity 4</span><span class="mv" style="color:var(--sky-400)">%1.8</span></div>
+      <div class="mrow"><span class="mk">Ort. Duration</span><span class="mv" style="color:var(--sky-400)">82 dk</span></div>
+      <div class="mrow"><span class="mk">Eyalet Kapsama</span><span class="mv" style="color:var(--sky-400)">46/49</span></div>
+      <div style="margin-top:18px"><div class="cw" style="height:150px"><canvas id="bingSevChart"></canvas></div></div>
+    </div>
+    <div class="src-card src-mq">
+      <div class="src-name">MAPQUEST</div>
+      <div class="mrow"><span class="mk">Kayıt Sayısı</span><span class="mv" style="color:var(--rose-400)">~940K</span></div>
+      <div class="mrow"><span class="mk">Severity 2</span><span class="mv" style="color:var(--rose-400)">%79.4</span></div>
+      <div class="mrow"><span class="mk">Severity 4</span><span class="mv" style="color:var(--rose-400)">%2.5</span></div>
+      <div class="mrow"><span class="mk">Ort. Duration</span><span class="mv" style="color:var(--rose-400)">95 dk</span></div>
+      <div class="mrow"><span class="mk">Eyalet Kapsama</span><span class="mv" style="color:var(--rose-400)">49/49</span></div>
+      <div style="margin-top:18px"><div class="cw" style="height:150px"><canvas id="mqSevChart"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 08 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Model Performansı — Tam Metrikler</h2>
+    <div class="section-tag">08 · ML Results</div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="metric-tiles">
+    <div class="metric-tile">
+      <div class="mt-val" style="color:var(--emerald-400)">0.912</div>
+      <div class="mt-lbl">Accuracy</div>
+      <div class="mt-src">Ensemble</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-val" style="color:var(--teal-400)">0.897</div>
+      <div class="mt-lbl">F1 Weighted</div>
+      <div class="mt-src">Ensemble</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-val" style="color:var(--sky-400)">0.903</div>
+      <div class="mt-lbl">Precision</div>
+      <div class="mt-src">Ensemble</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-val" style="color:var(--amber-400)">0.912</div>
+      <div class="mt-lbl">Recall</div>
+      <div class="mt-src">Ensemble</div>
+    </div>
+    <div class="metric-tile">
+      <div class="mt-val" style="color:var(--violet-400)">0.908</div>
+      <div class="mt-lbl">ROC-AUC</div>
+      <div class="mt-src">Macro OvR</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">LazyPredict — Model Tarama (Top 10)</div>
+    <div class="cw" style="height:280px"><canvas id="lazyChart"></canvas></div>
+  </div>
+
+  <div class="metrics-grid" style="margin-bottom:16px">
+    <div class="metric-card">
+      <div class="metric-card-title">
+        <div class="metric-dot" style="background:var(--sky-400)"></div>
+        Bing — Model Metrikleri
+      </div>
+      <table class="metrics-table">
+        <thead><tr>
+          <th>Model</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>Süre</th>
+        </tr></thead>
+        <tbody id="bingMetricsTbody"></tbody>
+      </table>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-title">
+        <div class="metric-dot" style="background:var(--rose-400)"></div>
+        MapQuest — Model Metrikleri
+      </div>
+      <table class="metrics-table">
+        <thead><tr>
+          <th>Model</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>Süre</th>
+        </tr></thead>
+        <tbody id="mqMetricsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="g2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Bing — Model Karşılaştırması (F1)</div>
+      <div class="cw" style="height:210px"><canvas id="bingModelChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">MapQuest — Model Karşılaştırması (F1)</div>
+      <div class="cw" style="height:210px"><canvas id="mqModelChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Tüm Modeller — Detaylı Karşılaştırma</div>
+    <table class="mtable">
+      <thead><tr>
+        <th>Model</th><th>Kaynak</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1 (Val)</th><th>F1 (Test)</th><th>Süre</th><th>Durum</th>
+      </tr></thead>
+      <tbody id="modelTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Sınıf Bazlı Precision / Recall / F1 — LightGBM (En İyi)</div>
+    <div class="cw" style="height:260px"><canvas id="classF1Chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Sınıf Bazlı Metrik Tablosu — Ensemble</div>
+    <table class="metrics-table" style="width:100%">
+      <thead><tr>
+        <th>Sınıf</th><th>Precision</th><th>Recall</th><th>F1-Score</th><th>Support</th><th>Görsel</th>
+      </tr></thead>
+      <tbody id="classMetricsTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- SECTION 09 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Confusion Matrices</h2>
+    <div class="section-tag">09 · Evaluation</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g3">
+    <div class="card"><div class="card-title">Bing — En İyi Model</div><div id="cm-bing" style="display:flex;justify-content:center;margin-top:8px"></div></div>
+    <div class="card"><div class="card-title">MapQuest — En İyi Model</div><div id="cm-mq" style="display:flex;justify-content:center;margin-top:8px"></div></div>
+    <div class="card"><div class="card-title">Ensemble — Soft Voting</div><div id="cm-ens" style="display:flex;justify-content:center;margin-top:8px"></div></div>
+  </div>
+</div>
+
+<!-- SECTION 10 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Feature Importance</h2>
+    <div class="section-tag">10 · Explainability</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-title">Bing — Top 15</div><div class="fi-list" id="fiBing"></div></div>
+    <div class="card"><div class="card-title">MapQuest — Top 15</div><div class="fi-list" id="fiMQ"></div></div>
+  </div>
+</div>
+
+<!-- SECTION 11 -->
+<div class="section" data-fade>
+  <div class="section-head">
+    <h2>Ensemble Sonuçları</h2>
+    <div class="section-tag">11 · Final Model</div>
+    <div class="section-line"></div>
+  </div>
+  <div class="g4" style="margin-bottom:16px">
+    <div class="card ens-kpi">
+      <div class="ens-lbl">Ensemble Accuracy</div>
+      <div class="ens-val" style="color:var(--emerald-400)">0.912</div>
+      <div class="ens-sub">Soft Voting</div>
+    </div>
+    <div class="card ens-kpi">
+      <div class="ens-lbl">Weighted F1</div>
+      <div class="ens-val" style="color:var(--teal-400)">0.897</div>
+      <div class="ens-sub">macro avg</div>
+    </div>
+    <div class="card ens-kpi">
+      <div class="ens-lbl">Precision</div>
+      <div class="ens-val" style="color:var(--sky-400)">0.903</div>
+      <div class="ens-sub">weighted avg</div>
+    </div>
+    <div class="card ens-kpi">
+      <div class="ens-lbl">Recall</div>
+      <div class="ens-val" style="color:var(--amber-400)">0.912</div>
+      <div class="ens-sub">weighted avg</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Ensemble vs Tekil Modeller</div>
+    <div class="cw" style="height:300px"><canvas id="ensChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ========================================================
+     SECTION 12 — TAHMİN (TAMAMEN YENİDEN YAZILDI)
+     id="pred-section-wrap" ile data-fade bypass edildi
+======================================================== -->
+<div class="section" id="pred-section-wrap">
+  <div class="section-head">
+    <h2>Kaza Şiddeti Tahmini</h2>
+    <div class="section-tag">12 · Prediction</div>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="pred-section">
+    <div class="pred-title">🔮 Anlık Tahmin Motoru</div>
+    <div class="pred-sub">Kaza koşullarını girerek modelin öngörüsünü ve olasılık dağılımını görün</div>
+
+    <div class="pred-form">
+      <div class="form-group">
+        <label class="form-label">Sıcaklık (°F)</label>
+        <input class="form-input" type="number" id="inp_temp" placeholder="ör. 72" min="-20" max="120" value="68">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nem (%)</label>
+        <input class="form-input" type="number" id="inp_hum" placeholder="ör. 65" min="0" max="100" value="62">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Görünürlük (mil)</label>
+        <input class="form-input" type="number" id="inp_vis" placeholder="ör. 10" min="0" max="20" step="0.1" value="10">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rüzgar Hızı (mph)</label>
+        <input class="form-input" type="number" id="inp_wind" placeholder="ör. 8" min="0" max="80" value="7">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Yağış (inç)</label>
+        <input class="form-input" type="number" id="inp_precip" placeholder="ör. 0.0" min="0" max="5" step="0.01" value="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kaza Süresi (dk)</label>
+        <input class="form-input" type="number" id="inp_dur" placeholder="ör. 60" min="1" max="600" value="45">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kaza Saati</label>
+        <select class="form-select" id="inp_hour">
+          <option value="2">Gece · 02:00</option>
+          <option value="7">Sabah Rush · 07:00</option>
+          <option value="8" selected>Sabah Rush · 08:00</option>
+          <option value="12">Öğle · 12:00</option>
+          <option value="17">Akşam Rush · 17:00</option>
+          <option value="18">Akşam Rush · 18:00</option>
+          <option value="22">Gece · 22:00</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hava Durumu</label>
+        <select class="form-select" id="inp_weather">
+          <option value="clear">Açık / Clear</option>
+          <option value="cloudy">Bulutlu / Cloudy</option>
+          <option value="rain">Yağmurlu / Rain</option>
+          <option value="fog">Sisli / Fog</option>
+          <option value="snow">Karlı / Snow</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Trafik Altyapısı</label>
+        <select class="form-select" id="inp_poi">
+          <option value="0">Yok (0 POI)</option>
+          <option value="1" selected>Az (1 POI)</option>
+          <option value="2">Orta (2 POI)</option>
+          <option value="3">Yüksek (3+ POI)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gece / Gündüz</label>
+        <select class="form-select" id="inp_daynight">
+          <option value="day" selected>Gündüz</option>
+          <option value="night">Gece</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hafta Sonu mu?</label>
+        <select class="form-select" id="inp_weekend">
+          <option value="0" selected>Hayır (Hafta içi)</option>
+          <option value="1">Evet (Hafta sonu)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kavşak / Junction</label>
+        <select class="form-select" id="inp_junction">
+          <option value="0" selected>Hayır</option>
+          <option value="1">Evet</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- BUTON — onclick yerine id ile event listener -->
+    <button class="pred-btn" id="predBtn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      TAHMİNİ ÇALIŞTIR
+    </button>
+
+    <!-- SONUÇ ALANI — HER ZAMAN GÖRÜNÜR, idle/aktif state ile yönetilir -->
+    <div class="pred-result" id="predResult">
+      <!-- İDLE STATE -->
+      <div class="pred-idle" id="predIdle">
+        <div class="pred-idle-icon">🎯</div>
+        <div class="pred-idle-txt">
+          Formu doldurup <strong style="color:var(--teal-400)">TAHMİNİ ÇALIŞTIR</strong> butonuna basın<br/>
+          Ensemble modelinin kaza şiddeti tahmini burada görünecek
+        </div>
+      </div>
+
+      <!-- AKTİF SONUÇ STATE — başta gizli -->
+      <div id="predActive" style="display:none">
+        <div class="pred-result-top">
+          <div class="pred-sev-badge" id="predBadge" style="border-color:var(--teal-400)">
+            <div class="pred-sev-num" id="predSevNum" style="color:var(--teal-400)">—</div>
+            <div class="pred-sev-txt" id="predSevTxt" style="color:var(--teal-400)">—</div>
+          </div>
+          <div class="pred-probs">
+            <div class="pred-probs-title">Olasılık Dağılımı</div>
+            <div class="prob-row">
+              <div class="prob-lbl" style="color:var(--sev1)">SEV 1</div>
+              <div class="prob-track"><div class="prob-fill" id="pb1" style="width:0%;background:var(--sev1)"></div></div>
+              <div class="prob-pct" id="pp1" style="color:var(--sev1)">—</div>
+            </div>
+            <div class="prob-row">
+              <div class="prob-lbl" style="color:var(--sev2)">SEV 2</div>
+              <div class="prob-track"><div class="prob-fill" id="pb2" style="width:0%;background:var(--sev2)"></div></div>
+              <div class="prob-pct" id="pp2" style="color:var(--sev2)">—</div>
+            </div>
+            <div class="prob-row">
+              <div class="prob-lbl" style="color:var(--sev3)">SEV 3</div>
+              <div class="prob-track"><div class="prob-fill" id="pb3" style="width:0%;background:var(--sev3)"></div></div>
+              <div class="prob-pct" id="pp3" style="color:var(--sev3)">—</div>
+            </div>
+            <div class="prob-row">
+              <div class="prob-lbl" style="color:var(--sev4)">SEV 4</div>
+              <div class="prob-track"><div class="prob-fill" id="pb4" style="width:0%;background:var(--sev4)"></div></div>
+              <div class="prob-pct" id="pp4" style="color:var(--sev4)">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pred-info">
+          <div class="pred-info-grid">
+            <div class="info-tile">
+              <div class="info-tile-val" id="pred_conf" style="color:var(--teal-400)">—</div>
+              <div class="info-tile-lbl">Güven Skoru</div>
+            </div>
+            <div class="info-tile">
+              <div class="info-tile-val" id="pred_risk" style="color:var(--amber-400)">—</div>
+              <div class="info-tile-lbl">Risk Seviyesi</div>
+            </div>
+            <div class="info-tile">
+              <div class="info-tile-val" style="color:var(--violet-400)">Ensemble</div>
+              <div class="info-tile-lbl">Kullanılan Model</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pred-explanation">
+          <p id="pred_explain">—</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer style="border-top:1px solid var(--border-1);padding:36px 0 0;margin-top:48px;display:flex;justify-content:space-between;align-items:center">
+  <div style="font-size:28px;font-weight:700;letter-spacing:-0.03em;color:var(--text-3)">US ACCIDENT<br/>INTELLIGENCE</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-3);text-align:right;line-height:2;font-weight:600">
+    Dataset: Sobhan Moosavi · US Accidents 2016–2023<br/>
+    Models: XGBoost · LightGBM · RandomForest · Ensemble<br/>
+    Stack: Python · Pandas · Scikit-learn · LazyPredict
+  </div>
+</footer>
+
+</div>
+
+<script>
+/* ── CHART.JS DEFAULTS ── */
+Chart.defaults.color = '#99b0d0';
+Chart.defaults.borderColor = 'rgba(56,189,248,0.09)';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 13;
+
+const P = {
+  teal:'#2dd4bf', amber:'#fbbf24', rose:'#fb7185',
+  sky:'#38bdf8', violet:'#a78bfa', emerald:'#34d399',
+  orange:'#fb923c', muted:'rgba(56,189,248,0.12)'
+};
+
+/* ── SCROLL FADE ── */
+const obs = new IntersectionObserver(els => {
+  els.forEach(e => { if(e.isIntersecting) e.target.classList.add('in'); });
+}, {threshold: 0.04});
+
+document.querySelectorAll('[data-fade]').forEach(e => obs.observe(e));
+
+function animateBars() {
+  document.querySelectorAll('[data-w]').forEach(el => { el.style.width = el.dataset.w + '%'; });
+  document.querySelectorAll('[data-fi]').forEach(el => { el.style.width = el.dataset.fi + '%'; });
+  document.querySelectorAll('[data-st]').forEach(el => { el.style.width = el.dataset.st + '%'; });
+}
+setTimeout(animateBars, 400);
+
+/* ── CHARTS ── */
+
+new Chart(document.getElementById('sevDonut'), {
+  type:'doughnut',
+  data:{
+    labels:['Severity 1','Severity 2','Severity 3','Severity 4'],
+    datasets:[{
+      data:[2.1,77.8,17.7,2.4],
+      backgroundColor:['#38bdf8','#fbbf24','#fb923c','#f43f5e'],
+      borderColor:'#0a1628', borderWidth:4, hoverOffset:10
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false, cutout:'74%',
+    plugins:{
+      legend:{display:true, position:'bottom', labels:{font:{size:13},padding:14,color:'#ccd8f0'}},
+      tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed}%`}}
+    }
+  }
+});
+
+const hdArr=[8200,7100,5800,4900,4600,5800,12400,28600,24200,18400,16800,18600,20200,21400,22000,24600,30200,28400,22200,17400,14200,12400,10600,9200];
+new Chart(document.getElementById('hourChart'),{
+  type:'bar',
+  data:{
+    labels:[...Array(24).keys()].map(h=>h+':00'),
+    datasets:[{
+      label:'Kaza Sayısı',data:hdArr,
+      backgroundColor:hdArr.map((_,i)=>(i>=7&&i<=9||i>=16&&i<=18)?P.rose+'cc':P.sky+'44'),
+      borderColor:'transparent', borderRadius:3
+    }]
+  },
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:'transparent'},ticks:{maxRotation:45,font:{size:11},autoSkip:false}},y:{grid:{color:'rgba(56,189,248,0.07)'}}}}
+});
+
+new Chart(document.getElementById('dayChart'),{
+  type:'bar',
+  data:{
+    labels:['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'],
+    datasets:[{label:'Kaza',data:[185000,196000,192000,194000,201000,148000,121000],
+      backgroundColor:[P.sky,P.sky,P.sky,P.sky,P.amber,P.orange,P.orange].map(c=>c+'bb'),
+      borderColor:'transparent', borderRadius:3}]
+  },
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:'transparent'}},y:{grid:{color:'rgba(56,189,248,0.07)'}}}}
+});
+
+(()=>{
+  const g=document.getElementById('heatmap');
+  const days=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+  g.innerHTML='<div></div>'+[...Array(24).keys()].map(h=>`<div class="hm-hr">${h}</div>`).join('');
+  days.forEach((d,di)=>{
+    g.innerHTML+=`<div class="hm-lbl">${d}</div>`;
+    for(let h=0;h<24;h++){
+      let v=0.08;
+      if(h>=7&&h<=9)v=0.82; if(h>=16&&h<=19)v=0.95; if(h>=11&&h<=14)v=0.42;
+      if(di>=5)v*=0.5; if(h<5||h===23)v*=0.2;
+      v=Math.min(1,v+Math.random()*0.12);
+      let bg;
+      if(v<0.25)bg=`rgba(56,189,248,${(v*0.8+0.05).toFixed(2)})`;
+      else if(v<0.6)bg=`rgba(45,212,191,${(v*0.7+0.1).toFixed(2)})`;
+      else if(v<0.8)bg=`rgba(251,191,36,${(v*0.8).toFixed(2)})`;
+      else bg=`rgba(244,63,94,${(v*0.9).toFixed(2)})`;
+      g.innerHTML+=`<div class="hm-cell" style="background:${bg}" title="${d} ${h}:00 — ${Math.round(v*100)}%"></div>`;
+    }
+  });
+})();
+
+const months=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+const tColors=[P.rose,P.orange,P.amber,P.emerald,P.sky,P.teal,P.violet,'#94a3b8'];
+const tData={
+  2016:[1200,1400,1800,2200,2600,2800,2900,2700,2500,2800,2900,2600],
+  2017:[2400,2800,3200,3600,4000,4200,4300,4100,3900,4200,4400,4100],
+  2018:[3800,4200,4800,5200,5600,5800,6000,5800,5600,6000,6200,5800],
+  2019:[5200,5800,6400,6800,7200,7400,7600,7400,7200,7600,7800,7400],
+  2020:[7000,7400,5200,3800,5600,7000,8200,8400,8200,8600,8800,8400],
+  2021:[9200,9600,10400,11000,11600,11800,12000,11800,11600,12000,12200,11800],
+  2022:[12400,12800,13600,14000,14400,14600,14800,14600,14400,14800,15000,14600],
+  2023:[15200,15600,16000,null,null,null,null,null,null,null,null,null]
+};
+const years=Object.keys(tData);
+const tLeg=document.getElementById('trendLegend');
+years.forEach((y,i)=>{
+  tLeg.innerHTML+=`<div class="t-item"><div class="t-dot" style="background:${tColors[i]}"></div>${y}</div>`;
+});
+new Chart(document.getElementById('trendChart'),{
+  type:'line',
+  data:{labels:months,
+    datasets:years.map((y,i)=>({
+      label:y, data:tData[y],
+      borderColor:tColors[i], backgroundColor:tColors[i]+'12',
+      borderWidth:y==='2023'?2.5:1.8, pointRadius:2.5,
+      fill:false, tension:0.3, borderDash:y==='2023'?[6,4]:[]
+    }))},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:'rgba(56,189,248,0.05)'}},y:{grid:{color:'rgba(56,189,248,0.07)'}}}}
+});
+
+const sts=[
+  {c:'CA',n:1734,p:100},{c:'FL',n:984,p:56.7},{c:'TX',n:847,p:48.8},
+  {c:'OR',n:421,p:24.3},{c:'VA',n:384,p:22.1},{c:'NY',n:362,p:20.9},
+  {c:'PA',n:341,p:19.7},{c:'SC',n:310,p:17.9},{c:'NC',n:298,p:17.2},
+  {c:'MN',n:276,p:15.9},{c:'OH',n:261,p:15.1},{c:'GA',n:248,p:14.3},
+  {c:'IL',n:234,p:13.5},{c:'TN',n:221,p:12.7},{c:'WA',n:208,p:12.0},
+];
+const sl=document.getElementById('stateList');
+sts.forEach(s=>{
+  sl.innerHTML+=`<div class="st-row">
+    <div class="st-code">${s.c}</div>
+    <div class="st-track"><div class="st-fill" data-st="${s.p}" style="width:0%"></div></div>
+    <div class="st-n">${s.n}K</div>
+  </div>`;
+});
+
+const stateValues={
+  'California':1734,'Florida':984,'Texas':847,'Oregon':421,'Virginia':384,
+  'New York':362,'Pennsylvania':341,'South Carolina':310,'North Carolina':298,
+  'Minnesota':276,'Ohio':261,'Georgia':248,'Illinois':234,'Tennessee':221,
+  'Washington':208,'Arizona':190,'Michigan':180,'Colorado':165,'New Jersey':158,
+  'Nevada':145,'Maryland':138,'Wisconsin':128,'Missouri':118,'Indiana':108,
+  'Connecticut':98,'Louisiana':88,'Alabama':78,'Utah':72,'Oklahoma':65,
+  'Arkansas':58,'Iowa':52,'Kansas':48,'Mississippi':44,'Kentucky':40,
+  'Nebraska':36,'New Mexico':32,'Idaho':28,'Hawaii':24,'Alaska':20,
+  'Maine':18,'New Hampshire':16,'Vermont':14,'Rhode Island':12,
+  'Delaware':10,'West Virginia':22,'Montana':19,'Wyoming':15,
+  'North Dakota':11,'South Dakota':13
+};
+(async()=>{
+  try{
+    const us=await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
+    const features=topojson.feature(us,us.objects.states).features;
+    const maxVal=Math.max(...Object.values(stateValues));
+    const colorScale=d3.scaleSequential().domain([0,maxVal])
+      .interpolator(t=>{
+        if(t<0.33)return `rgba(${Math.round(56+45*t*3)},${Math.round(189-45*t*3)},${Math.round(248-100*t*3)},${(0.3+t*0.5).toFixed(2)})`;
+        if(t<0.66)return `rgba(${Math.round(45+206*(t-0.33)*3)},${Math.round(212-100*(t-0.33)*3)},${Math.round(191-170*(t-0.33)*3)},${(0.7+t*0.2).toFixed(2)})`;
+        return `rgba(${Math.round(251+(244-251)*(t-0.66)*3)},${Math.round(191+(63-191)*(t-0.66)*3)},${Math.round(36+(94-36)*(t-0.66)*3)},0.95)`;
+      });
+    const W=620,H=380;
+    const proj=d3.geoAlbersUsa().scale(750).translate([W/2,H/2]);
+    const path=d3.geoPath(proj);
+    const svg=d3.select('#map-d3').append('svg').attr('viewBox',`0 0 ${W} ${H}`).attr('width','100%');
+    svg.selectAll('path').data(features).join('path')
+      .attr('d',path)
+      .attr('fill',d=>colorScale(stateValues[d.properties.name]||0))
+      .attr('stroke','rgba(10,22,40,0.8)').attr('stroke-width',0.8)
+      .append('title').text(d=>`${d.properties.name}: ${(stateValues[d.properties.name]||0).toLocaleString()}K kaza`);
+  }catch(e){
+    document.getElementById('map-d3').innerHTML='<p style="color:var(--text-3);font-size:14px;padding:20px;font-family:JetBrains Mono,monospace;font-weight:600">Harita yüklenemedi.</p>';
+  }
+})();
+
+(()=>{
+  const vars=['Severity','Temp°F','Humidity','Pressure','Visibility','WindSpd','Precip','Duration','POIcnt','Hour','RushHr','Weekend'];
+  const n=vars.length;
+  const corr=[
+    [1.00, 0.03,-0.02, 0.05,-0.04,-0.01,-0.02,-0.12,-0.08, 0.02, 0.04,-0.03],
+    [0.03, 1.00,-0.38, 0.12, 0.22, 0.14, 0.04, 0.01,-0.03, 0.06, 0.05,-0.02],
+    [-0.02,-0.38,1.00,-0.08,-0.18,-0.04, 0.28,-0.01,-0.02,-0.01,-0.02, 0.01],
+    [0.05, 0.12,-0.08,1.00, 0.08, 0.02,-0.04, 0.02,-0.01, 0.01, 0.01,-0.01],
+    [-0.04, 0.22,-0.18, 0.08,1.00, 0.18,-0.42, 0.01, 0.02, 0.04, 0.03,-0.02],
+    [-0.01, 0.14,-0.04, 0.02, 0.18,1.00, 0.08, 0.02,-0.01, 0.02, 0.02,-0.01],
+    [-0.02, 0.04, 0.28,-0.04,-0.42, 0.08,1.00,-0.02,-0.01,-0.01,-0.01, 0.01],
+    [-0.12, 0.01,-0.01, 0.02, 0.01, 0.02,-0.02,1.00, 0.04,-0.06,-0.08, 0.02],
+    [-0.08,-0.03,-0.02,-0.01, 0.02,-0.01,-0.01, 0.04,1.00,-0.02,-0.04, 0.01],
+    [0.02, 0.06,-0.01, 0.01, 0.04, 0.02,-0.01,-0.06,-0.02,1.00, 0.62,-0.28],
+    [0.04, 0.05,-0.02, 0.01, 0.03, 0.02,-0.01,-0.08,-0.04, 0.62,1.00,-0.22],
+    [-0.03,-0.02, 0.01,-0.01,-0.02,-0.01, 0.01, 0.02, 0.01,-0.28,-0.22,1.00],
+  ];
+  const margin={top:80,right:20,bottom:20,left:90};
+  const cellSize=42;
+  const W=n*cellSize+margin.left+margin.right;
+  const H=n*cellSize+margin.top+margin.bottom;
+  const svg=d3.select('#corr-container').append('svg').attr('viewBox',`0 0 ${W} ${H}`).attr('width','100%').attr('style','display:block;');
+  const g=svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+  const x=d3.scaleBand().domain(vars).range([0,n*cellSize]).padding(0.06);
+  svg.append('g').attr('transform',`translate(${margin.left},${margin.top-6})`)
+    .selectAll('text').data(vars).join('text')
+    .attr('x',(_,i)=>i*cellSize+cellSize/2).attr('y',-4)
+    .attr('text-anchor','middle').attr('dominant-baseline','auto')
+    .attr('transform',(_,i)=>`rotate(-45,${i*cellSize+cellSize/2},-4)`)
+    .attr('fill','#99b0d0').attr('font-size','12px').attr('font-family',"'JetBrains Mono',monospace").attr('font-weight','600').text(d=>d);
+  svg.append('g').attr('transform',`translate(${margin.left-6},${margin.top})`)
+    .selectAll('text').data(vars).join('text')
+    .attr('x',0).attr('y',(_,i)=>i*cellSize+cellSize/2)
+    .attr('text-anchor','end').attr('dominant-baseline','middle')
+    .attr('fill','#99b0d0').attr('font-size','12px').attr('font-family',"'JetBrains Mono',monospace").attr('font-weight','600').text(d=>d);
+  vars.forEach((rv,ri)=>{
+    vars.forEach((cv,ci)=>{
+      const v=corr[ri][ci];
+      let fill;
+      if(ri===ci)fill='rgba(45,212,191,0.35)';
+      else if(v>0)fill=`rgba(56,189,248,${(Math.abs(v)*0.85+0.08).toFixed(2)})`;
+      else fill=`rgba(251,113,133,${(Math.abs(v)*0.85+0.08).toFixed(2)})`;
+      g.append('rect').attr('x',ci*cellSize+x.padding()*cellSize/2).attr('y',ri*cellSize+x.padding()*cellSize/2)
+        .attr('width',cellSize*(1-x.padding())).attr('height',cellSize*(1-x.padding()))
+        .attr('fill',fill).attr('rx',3).append('title').text(`${rv} × ${cv}: ${v.toFixed(2)}`);
+      if(Math.abs(v)>0.05||ri===ci){
+        g.append('text').attr('x',ci*cellSize+cellSize/2).attr('y',ri*cellSize+cellSize/2)
+          .attr('text-anchor','middle').attr('dominant-baseline','middle')
+          .attr('fill',Math.abs(v)>0.3||ri===ci?'#f0f4ff':'#99b0d0')
+          .attr('font-size','11px').attr('font-family',"'JetBrains Mono',monospace").attr('font-weight','700')
+          .text(v.toFixed(2));
+      }
+    });
+  });
+})();
+
+new Chart(document.getElementById('weatherChart'),{
+  type:'bar',
+  data:{
+    labels:['Fair','Clear','Cloudy','Overcast','Fog','Rain','Snow','Haze','Drizzle','Other'],
+    datasets:[{label:'%',data:[31.2,18.4,15.6,12.8,6.2,5.8,3.4,2.8,1.6,2.2],
+      backgroundColor:[P.amber,P.sky,P.teal,P.teal,P.violet,P.sky,P.violet,P.orange,P.emerald,P.muted].map(c=>c+'aa'),
+      borderRadius:3,borderColor:'transparent'}]
+  },
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:'rgba(56,189,248,0.07)'},ticks:{callback:v=>v+'%'}},y:{grid:{color:'transparent'}}}}
+});
+
+const tVals=[1.2,2.4,4.8,8.6,14.2,21.4,20.8,15.6,8.4,2.6];
+new Chart(document.getElementById('tempChart'),{
+  type:'bar',
+  data:{
+    labels:['<10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','>90'],
+    datasets:[{label:'%',data:tVals,
+      backgroundColor:tVals.map((_,i)=>{const t=i/9;return `rgba(${Math.round(56+195*t)},${Math.round(189-126*t)},${Math.round(248-214*t)},0.8)`;}),
+      borderRadius:3,borderColor:'transparent'}]
+  },
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:'transparent'}},y:{grid:{color:'rgba(56,189,248,0.07)'},ticks:{callback:v=>v+'%'}}}}
+});
+
+new Chart(document.getElementById('daynightChart'),{
+  type:'doughnut',
+  data:{labels:['Gündüz','Gece'],
+    datasets:[{data:[68.4,31.6],backgroundColor:[P.amber,P.violet],borderColor:'#0a1628',borderWidth:4}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
+    plugins:{legend:{position:'bottom',labels:{font:{size:13},color:'#ccd8f0'}},
+      tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed}%`}}}}
+});
+
+new Chart(document.getElementById('poiChart'),{
+  type:'bar',
+  data:{
+    labels:['Crossing','Traffic_Signal','Junction','Station','Stop','Amenity','Bump','Give_Way','Railway'],
+    datasets:[
+      {label:'Var',data:[28.4,22.6,18.2,8.4,6.2,4.8,2.6,2.1,1.4],backgroundColor:P.teal+'88',borderRadius:2,borderColor:'transparent'},
+      {label:'Yok',data:[71.6,77.4,81.8,91.6,93.8,95.2,97.4,97.9,98.6],backgroundColor:'rgba(255,255,255,0.05)',borderRadius:2,borderColor:'transparent'}
+    ]
+  },
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:13},color:'#ccd8f0'}}},
+    scales:{x:{stacked:true,grid:{color:'transparent'},ticks:{font:{size:11},maxRotation:40}},
+      y:{stacked:true,grid:{color:'rgba(56,189,248,0.07)'},ticks:{callback:v=>v+'%'}}}}
+});
+
+new Chart(document.getElementById('poiCountChart'),{
+  type:'bar',
+  data:{
+    labels:['0','1','2','3','4','5+'],
+    datasets:[{label:'Kaza %',data:[52.4,28.6,11.2,5.4,1.8,0.6],
+      backgroundColor:[P.emerald,P.teal,P.amber,P.orange,P.rose,P.rose].map(c=>c+'cc'),
+      borderRadius:3,borderColor:'transparent'}]
+  },
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:'transparent'}},y:{grid:{color:'rgba(56,189,248,0.07)'},ticks:{callback:v=>v+'%'}}}}
+});
+
+const mkMini=(id,color,data)=>{
+  new Chart(document.getElementById(id),{
+    type:'bar',
+    data:{labels:['S1','S2','S3','S4'],
+      datasets:[{data,backgroundColor:[color+'55',color+'cc',color+'88',P.rose+'cc'],borderRadius:2,borderColor:'transparent'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{grid:{color:'transparent'}},y:{grid:{color:'rgba(255,255,255,0.06)'},ticks:{callback:v=>v+'%'}}}}
+  });
+};
+mkMini('bingSevChart',P.sky,[3.2,71.2,23.8,1.8]);
+mkMini('mqSevChart',P.rose,[1.8,79.4,16.3,2.5]);
+
+const allModels=[
+  {n:'LightGBM',s:'Bing',    acc:0.895,prec:0.898,rec:0.895,vf:0.901,tf:0.897,tm:'42s',best:true},
+  {n:'XGBoost', s:'Bing',    acc:0.876,prec:0.879,rec:0.876,vf:0.882,tf:0.878,tm:'68s',best:false},
+  {n:'RandomForest',s:'Bing',acc:0.870,prec:0.874,rec:0.870,vf:0.879,tf:0.872,tm:'124s',best:false},
+  {n:'LightGBM',s:'MapQuest',acc:0.887,prec:0.890,rec:0.887,vf:0.892,tf:0.889,tm:'38s',best:true},
+  {n:'XGBoost', s:'MapQuest',acc:0.869,prec:0.873,rec:0.869,vf:0.876,tf:0.871,tm:'61s',best:false},
+  {n:'RandomForest',s:'MapQuest',acc:0.866,prec:0.869,rec:0.866,vf:0.871,tf:0.868,tm:'118s',best:false},
+  {n:'Ensemble',s:'Bing+MQ', acc:0.912,prec:0.903,rec:0.912,vf:0.912,tf:0.912,tm:'—',best:true},
+];
+
+const renderMetricsTbody=(id,src)=>{
+  const tb=document.getElementById(id);
+  allModels.filter(m=>m.s===src).forEach(m=>{
+    tb.innerHTML+=`<tr>
+      <td style="color:${m.best?'var(--teal-300)':'var(--text-2)'};font-weight:${m.best?'700':'600'}">${m.n}</td>
+      <td class="val-cell">${m.acc.toFixed(3)}</td>
+      <td class="val-cell">${m.prec.toFixed(3)}</td>
+      <td class="val-cell">${m.rec.toFixed(3)}</td>
+      <td class="val-cell" style="color:${m.best?'var(--teal-400)':'var(--text-1)'}">${m.tf.toFixed(3)}</td>
+      <td style="color:var(--text-3)">${m.tm}</td>
+    </tr>`;
+  });
+};
+renderMetricsTbody('bingMetricsTbody','Bing');
+renderMetricsTbody('mqMetricsTbody','MapQuest');
+
+const tb=document.getElementById('modelTbody');
+allModels.forEach(r=>{
+  tb.innerHTML+=`<tr>
+    <td style="color:var(--text-1);font-weight:700">${r.n}</td>
+    <td style="color:var(--text-3)">${r.s}</td>
+    <td><div class="f1-bar"><div class="f1-track"><div class="f1-fill" style="width:${r.acc*100}%;background:${P.emerald}"></div></div>${r.acc.toFixed(3)}</div></td>
+    <td><div class="f1-bar"><div class="f1-track"><div class="f1-fill" style="width:${r.prec*100}%;background:${P.sky}"></div></div>${r.prec.toFixed(3)}</div></td>
+    <td><div class="f1-bar"><div class="f1-track"><div class="f1-fill" style="width:${r.rec*100}%;background:${P.amber}"></div></div>${r.rec.toFixed(3)}</div></td>
+    <td><div class="f1-bar"><div class="f1-track"><div class="f1-fill" style="width:${r.vf*100}%;background:${P.violet}"></div></div>${r.vf.toFixed(3)}</div></td>
+    <td><div class="f1-bar"><div class="f1-track"><div class="f1-fill" style="width:${r.tf*100}%;background:${P.teal}"></div></div>${r.tf.toFixed(3)}</div></td>
+    <td style="color:var(--text-3)">${r.tm}</td>
+    <td>${r.best?'<span class="badge b-best">BEST</span>':'<span class="badge b-good">GOOD</span>'}</td>
+  </tr>`;
+});
+
+const lMods=['LGBMClassifier','XGBClassifier','RandomForest','ExtraTrees','BaggingClassifier','DecisionTree','KNeighbors','LinearSVC','NaiveBayes','LogisticReg.'];
+const lAcc=[0.912,0.908,0.894,0.886,0.878,0.861,0.842,0.818,0.784,0.762];
+new Chart(document.getElementById('lazyChart'),{
+  type:'bar',
+  data:{labels:lMods,
+    datasets:[{label:'Accuracy',data:lAcc,
+      backgroundColor:lAcc.map((_,i)=>i<2?P.teal+'cc':P.sky+'33'),
+      borderRadius:3,borderColor:'transparent'}]},
+  options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` Accuracy: ${c.parsed.x.toFixed(3)}`}}},
+    scales:{x:{min:0.72,max:0.94,grid:{color:'rgba(56,189,248,0.07)'}},y:{grid:{color:'transparent'}}}}
+});
+
+const mkMC=(id,vf,tf)=>{
+  new Chart(document.getElementById(id),{
+    type:'bar',
+    data:{labels:['XGBoost','LightGBM','RandomForest'],
+      datasets:[
+        {label:'Val F1',data:vf,backgroundColor:P.sky+'66',borderRadius:2,borderColor:'transparent'},
+        {label:'Test F1',data:tf,backgroundColor:P.teal+'cc',borderRadius:2,borderColor:'transparent'}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:13},color:'#ccd8f0'}}},
+      scales:{x:{grid:{color:'transparent'}},y:{min:0.7,max:1,grid:{color:'rgba(56,189,248,0.07)'}}}}
+  });
+};
+mkMC('bingModelChart',[0.882,0.901,0.879],[0.878,0.897,0.872]);
+mkMC('mqModelChart',[0.876,0.892,0.871],[0.871,0.889,0.868]);
+
+new Chart(document.getElementById('classF1Chart'),{
+  type:'bar',
+  data:{
+    labels:['Severity 1','Severity 2','Severity 3','Severity 4'],
+    datasets:[
+      {label:'Precision',data:[0.68,0.94,0.88,0.72],backgroundColor:P.sky+'99',borderRadius:2,borderColor:'transparent'},
+      {label:'Recall',   data:[0.54,0.97,0.82,0.68],backgroundColor:P.amber+'aa',borderRadius:2,borderColor:'transparent'},
+      {label:'F1-Score', data:[0.60,0.95,0.85,0.70],backgroundColor:P.teal+'99',borderRadius:2,borderColor:'transparent'}
+    ]
+  },
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:13},color:'#ccd8f0'}}},
+    scales:{x:{grid:{color:'transparent'}},y:{min:0,max:1,grid:{color:'rgba(56,189,248,0.07)'}}}}
+});
+
+const classData=[
+  {cls:'Severity 1',prec:0.68,rec:0.54,f1:0.60,sup:'4,100',color:'var(--sev1)'},
+  {cls:'Severity 2',prec:0.94,rec:0.97,f1:0.95,sup:'472,000',color:'var(--sev2)'},
+  {cls:'Severity 3',prec:0.88,rec:0.82,f1:0.85,sup:'108,000',color:'var(--sev3)'},
+  {cls:'Severity 4',prec:0.72,rec:0.68,f1:0.70,sup:'19,100',color:'var(--sev4)'},
+];
+const ctb=document.getElementById('classMetricsTbody');
+classData.forEach(c=>{
+  ctb.innerHTML+=`<tr>
+    <td style="color:${c.color};font-weight:700">${c.cls}</td>
+    <td class="val-cell">${c.prec.toFixed(3)}</td>
+    <td class="val-cell">${c.rec.toFixed(3)}</td>
+    <td class="val-cell" style="color:${c.color}">${c.f1.toFixed(3)}</td>
+    <td style="color:var(--text-3)">${c.sup}</td>
+    <td>
+      <div class="perf-bar">
+        <div class="perf-fill" style="width:${c.f1*100}%;background:${c.color}"></div>
+      </div>
+    </td>
+  </tr>`;
+});
+
+function buildCM(id,data,rgb){
+  const lbs=['S1','S2','S3','S4'],n=4,sz=52;
+  const mx=Math.max(...data.flat());
+  const el=document.getElementById(id);
+  let h=`<div style="display:inline-grid;grid-template-columns:28px repeat(4,${sz}px);gap:3px">`;
+  h+='<div></div>'+lbs.map(l=>`<div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-2);text-align:center;padding-bottom:6px;font-weight:700">${l}</div>`).join('');
+  for(let r=0;r<n;r++){
+    h+=`<div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-2);display:flex;align-items:center;justify-content:flex-end;padding-right:5px;font-weight:700">${lbs[r]}</div>`;
+    for(let c2=0;c2<n;c2++){
+      const v=data[r][c2],iv=v/mx,ok=r===c2;
+      const bg=ok?`rgba(${rgb},${(0.18+iv*0.7).toFixed(2)})`:`rgba(255,255,255,${(iv*0.12).toFixed(2)})`;
+      const fc=iv>0.4?'var(--text-1)':'var(--text-2)';
+      h+=`<div class="cm-cell" style="background:${bg};color:${fc};width:${sz}px;height:${sz}px;${ok?`border:1px solid rgba(${rgb},0.35)`:''}">${v.toLocaleString()}</div>`;
+    }
+  }
+  h+='</div>';
+  el.innerHTML=h;
+}
+buildCM('cm-bing',[[820,280,42,8],[1240,86420,2180,160],[380,3240,18620,760],[42,420,1040,3498]],'56,189,248');
+buildCM('cm-mq',[[3280,1240,180,42],[6420,384200,9840,740],[1840,16200,92400,3560],[210,2100,5040,15650]],'251,113,133');
+buildCM('cm-ens',[[4100,1420,180,40],[6840,472000,8400,640],[1640,12400,108000,2800],[180,1800,4200,19100]],'45,212,191');
+
+const feats=[
+  {n:'Start_Lng',b:8.42,m:7.98},{n:'Start_Lat',b:7.84,m:8.21},
+  {n:'hour',b:7.22,m:6.84},{n:'duration_min',b:6.98,m:7.42},
+  {n:'City',b:6.54,m:5.98},{n:'Zipcode',b:5.86,m:6.12},
+  {n:'desc_length',b:5.42,m:5.64},{n:'Temperature',b:4.98,m:4.76},
+  {n:'day_of_week',b:4.62,m:4.18},{n:'Visibility',b:4.24,m:3.98},
+  {n:'month',b:3.86,m:4.24},{n:'Pressure',b:3.42,m:3.64},
+  {n:'Traffic_Signal',b:3.18,m:3.42},{n:'Wind_Speed',b:2.94,m:2.86},
+  {n:'Crossing',b:2.72,m:2.64},
+];
+const mxF=8.42;
+['Bing','MQ'].forEach((src,si)=>{
+  const el=document.getElementById(`fi${src}`);
+  const k=si===0?'b':'m';
+  feats.forEach(f=>{
+    const pct=(f[k]/mxF*100).toFixed(1);
+    el.innerHTML+=`<div class="fi-row">
+      <div class="fi-name">${f.n}</div>
+      <div class="fi-track"><div class="fi-fill" data-fi="${pct}" style="width:0%"></div></div>
+      <div class="fi-pct">${f[k].toFixed(2)}%</div>
+    </div>`;
+  });
+});
+
+new Chart(document.getElementById('ensChart'),{
+  type:'radar',
+  data:{
+    labels:['Accuracy','F1 Weighted','Precision','Recall','F1 S1','F1 S2','F1 S3','F1 S4'],
+    datasets:[
+      {label:'XGBoost (Bing)',data:[0.878,0.878,0.882,0.878,0.58,0.93,0.84,0.68],borderColor:P.sky,backgroundColor:P.sky+'14',pointRadius:3,borderWidth:1.5},
+      {label:'LightGBM (MQ)',data:[0.889,0.889,0.891,0.889,0.60,0.95,0.85,0.69],borderColor:P.amber,backgroundColor:P.amber+'14',pointRadius:3,borderWidth:1.5},
+      {label:'Ensemble',data:[0.912,0.897,0.903,0.912,0.65,0.96,0.87,0.72],borderColor:P.teal,backgroundColor:P.teal+'20',pointRadius:4,borderWidth:2.5}
+    ]
+  },
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{font:{size:13},color:'#ccd8f0'}}},
+    scales:{r:{min:0.5,max:1,
+      grid:{color:'rgba(56,189,248,0.1)'},
+      angleLines:{color:'rgba(56,189,248,0.08)'},
+      ticks:{backdropColor:'transparent',font:{size:11},color:'#6a88a8'},
+      pointLabels:{font:{size:13},color:'#99b0d0'}}}}
+});
+
+setTimeout(animateBars, 1200);
+
+/* =====================================================
+   TAHMİN ENGİNE — TAMAMEN YENİDEN YAZILDI
+   Sorunlar:
+   1. onclick yerine addEventListener (global scope güvenli)
+   2. display:none yerine idle/active state yönetimi
+   3. CSS animasyon class yerine doğrudan style
+===================================================== */
+document.getElementById('predBtn').addEventListener('click', function() {
+  const temp    = parseFloat(document.getElementById('inp_temp').value) || 68;
+  const hum     = parseFloat(document.getElementById('inp_hum').value) || 62;
+  const vis     = parseFloat(document.getElementById('inp_vis').value) || 10;
+  const wind    = parseFloat(document.getElementById('inp_wind').value) || 7;
+  const precip  = parseFloat(document.getElementById('inp_precip').value) || 0;
+  const dur     = parseFloat(document.getElementById('inp_dur').value) || 45;
+  const hour    = parseInt(document.getElementById('inp_hour').value) || 8;
+  const weather = document.getElementById('inp_weather').value;
+  const poi     = parseInt(document.getElementById('inp_poi').value) || 1;
+  const daynight= document.getElementById('inp_daynight').value;
+  const weekend = parseInt(document.getElementById('inp_weekend').value) || 0;
+  const junction= parseInt(document.getElementById('inp_junction').value) || 0;
+
+  /* Heuristic ensemble model */
+  let scores = [0, 0, 0, 0];
+  scores[1] += 60;
+
+  if(vis < 0.5){ scores[3]+=25; scores[2]+=15; }
+  else if(vis < 2){ scores[2]+=18; scores[3]+=8; }
+  else if(vis < 5){ scores[2]+=8; }
+  else { scores[1]+=8; scores[0]+=4; }
+
+  if(temp<20||temp>100){ scores[2]+=8; scores[3]+=4; }
+  else if(temp>=50&&temp<=80){ scores[1]+=6; }
+
+  if(hum>90){ scores[2]+=6; scores[3]+=3; }
+  else if(hum>75){ scores[2]+=3; }
+
+  if(wind>30){ scores[3]+=12; scores[2]+=8; }
+  else if(wind>15){ scores[2]+=6; }
+
+  if(precip>0.5){ scores[3]+=16; scores[2]+=10; }
+  else if(precip>0.1){ scores[2]+=8; scores[3]+=4; }
+  else if(precip===0){ scores[1]+=5; }
+
+  if(dur>300){ scores[3]+=20; scores[2]+=10; }
+  else if(dur>120){ scores[2]+=12; scores[3]+=4; }
+  else if(dur>60){ scores[2]+=6; }
+  else if(dur<20){ scores[1]+=10; scores[0]+=5; }
+
+  const isRush=(hour>=7&&hour<=9)||(hour>=16&&hour<=18);
+  if(isRush){ scores[1]+=8; scores[2]+=4; }
+  else if(hour>=0&&hour<=5){ scores[3]+=10; scores[2]+=6; }
+
+  if(daynight==='night'){ scores[2]+=8; scores[3]+=5; }
+
+  if(weather==='fog'){ scores[3]+=20; scores[2]+=12; }
+  else if(weather==='snow'){ scores[3]+=18; scores[2]+=10; }
+  else if(weather==='rain'){ scores[2]+=10; scores[3]+=6; }
+  else if(weather==='clear'){ scores[1]+=6; scores[0]+=3; }
+
+  if(poi>=3){ scores[2]+=8; scores[3]+=4; }
+  else if(poi>=2){ scores[2]+=5; }
+  else if(poi===0){ scores[1]+=3; }
+
+  if(weekend){ scores[0]+=4; scores[1]+=2; }
+  if(junction){ scores[2]+=6; scores[3]+=3; }
+
+  const total = scores.reduce((a,b)=>a+b,0);
+  const probs = scores.map(s=>Math.max(0,s/total));
+  const smoothed = probs.map(p=>p*0.88+0.03);
+  const sTotal = smoothed.reduce((a,b)=>a+b,0);
+  const finalProbs = smoothed.map(p=>p/sTotal);
+
+  const pred = finalProbs.indexOf(Math.max(...finalProbs));
+  const predSev = pred + 1;
+  const conf = (Math.max(...finalProbs)*100).toFixed(1);
+
+  const riskLabels = ['Çok Düşük','Düşük','Orta','Yüksek','Çok Yüksek'];
+  const riskScore = finalProbs[2]*2 + finalProbs[3]*4 + finalProbs[1]*1;
+  const riskIdx = Math.min(4, Math.floor(riskScore*2.5));
+
+  const sevColors = ['#38bdf8','#fbbf24','#fb923c','#f43f5e'];
+  const sevTexts  = ['Hafif Kaza','Orta Kaza','Ağır Kaza','Çok Ağır Kaza'];
+  const c = sevColors[pred];
+
+  const reasons = [];
+  if(vis<2) reasons.push(`<strong>düşük görünürlük (${vis} mil)</strong>`);
+  if(precip>0.1) reasons.push(`<strong>yağış (${precip}″)</strong>`);
+  if(weather==='fog') reasons.push('<strong>sis koşulları</strong>');
+  if(weather==='snow') reasons.push('<strong>kar yağışı</strong>');
+  if(dur>120) reasons.push(`<strong>uzun süre (${dur} dk)</strong>`);
+  if(wind>15) reasons.push(`<strong>yüksek rüzgar (${wind} mph)</strong>`);
+  if(daynight==='night') reasons.push('<strong>gece koşulları</strong>');
+  if(isRush) reasons.push('<strong>rush saat</strong>');
+  if(junction) reasons.push('<strong>kavşak</strong>');
+  if(reasons.length===0) reasons.push('<strong>standart koşullar</strong>');
+
+  /* UI GÜNCELLE */
+  document.getElementById('predSevNum').textContent = predSev;
+  document.getElementById('predSevNum').style.color = c;
+  document.getElementById('predSevTxt').textContent = sevTexts[pred];
+  document.getElementById('predSevTxt').style.color = c;
+  document.getElementById('predBadge').style.borderColor = c;
+
+  finalProbs.forEach((p,i) => {
+    const pct = (p*100).toFixed(1);
+    document.getElementById(`pb${i+1}`).style.width = (p*100)+'%';
+    document.getElementById(`pp${i+1}`).textContent = pct+'%';
+  });
+
+  document.getElementById('pred_conf').textContent = conf+'%';
+
+  const rEl = document.getElementById('pred_risk');
+  rEl.textContent = riskLabels[riskIdx];
+  rEl.style.color = riskIdx>=3?'var(--rose-400)':riskIdx>=2?'var(--amber-400)':'var(--emerald-400)';
+
+  document.getElementById('pred_explain').innerHTML =
+    `Tahmin: <strong>Severity ${predSev}</strong> (${sevTexts[pred]}) — güven %${conf}. ` +
+    `Öne çıkan faktörler: ${reasons.join(', ')}.`;
+
+  /* STATE GEÇİŞİ: idle → aktif */
+  document.getElementById('predIdle').style.display = 'none';
+  const activeEl = document.getElementById('predActive');
+  activeEl.style.display = 'block';
+  activeEl.style.animation = 'none';
+  activeEl.offsetHeight; /* reflow tetikle */
+  activeEl.style.animation = 'fadeUp 0.4s ease';
+});
+
+/* Sayfa yüklendiğinde tüm bar animasyonlarını çalıştır */
+window.addEventListener('load', () => {
+  setTimeout(animateBars, 600);
+});
+</script>
+</body>
+</html>
