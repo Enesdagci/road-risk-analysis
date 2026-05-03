@@ -532,7 +532,7 @@ with col_res:
 
     if tahmin_btn:
         with st.spinner(""):
-            sonuc = predict_risk(params, threshold=0.25)
+            sonuc = predict_risk(params, threshold=0.40)
 
         # Ana risk kutusu
         st.markdown(f"""
