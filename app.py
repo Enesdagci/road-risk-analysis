@@ -1,12 +1,3 @@
-"""
-Yol Risk Analizi — Streamlit Arayüzü v3
-Kurulum:
-    pip install streamlit folium streamlit-folium joblib lightgbm requests
-
-Çalıştırma:
-    streamlit run app.py
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -16,10 +7,11 @@ import folium
 from streamlit_folium import st_folium
 from datetime import datetime
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # =============================================================================
-# SAYFA AYARLARI
+# SAYFA AYARLARI VE STATE YÖNETİMİ (PREDICTABILITY)
 # =============================================================================
 st.set_page_config(
     page_title="RiskRadar — Yol Risk Analizi",
@@ -27,6 +19,18 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Streamlit'in sayfa yenilemelerinde verileri unutmaması için Session State tanımlamaları
+if "pred_result" not in st.session_state:
+    st.session_state.pred_result = None
+if "il_sec" not in st.session_state:
+    st.session_state.il_sec = "Samsun"
+if "lat" not in st.session_state:
+    st.session_state.lat = 41.2867
+if "lon" not in st.session_state:
+    st.session_state.lon = 36.3300
+if "last_clicked_coord" not in st.session_state:
+    st.session_state.last_clicked_coord = None
 
 # =============================================================================
 # TASARIM — Koyu, profesyonel, dashboard tarzı
@@ -36,238 +40,57 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=Inter:wght@300;400;500&display=swap');
 
     /* ANA ARKA PLAN */
-    .stApp {
-        background: #0a0e1a;
-        color: #e8eaf0;
-    }
-    section[data-testid="stSidebar"] {
-        background: #0f1420;
-        border-right: 1px solid #1e2535;
-    }
-    section[data-testid="stSidebar"] * {
-        color: #c8cdd8 !important;
-    }
+    .stApp { background: #0a0e1a; color: #e8eaf0; }
+    section[data-testid="stSidebar"] { background: #0f1420; border-right: 1px solid #1e2535; }
+    section[data-testid="stSidebar"] * { color: #c8cdd8 !important; }
 
     /* BAŞLIK */
-    .main-header {
-        font-family: 'Syne', sans-serif;
-        font-size: 2.4rem;
-        font-weight: 800;
-        color: #ffffff;
-        letter-spacing: -0.03em;
-        margin: 0 0 0.2rem 0;
-        line-height: 1;
-    }
-    .main-sub {
-        font-family: 'DM Mono', monospace;
-        font-size: 0.72rem;
-        color: #4a90a4;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        margin-bottom: 1.5rem;
-    }
+    .main-header { font-family: 'Syne', sans-serif; font-size: 2.4rem; font-weight: 800; color: #ffffff; letter-spacing: -0.03em; margin: 0 0 0.2rem 0; line-height: 1; }
+    .main-sub { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: #4a90a4; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 1.5rem; }
 
     /* RİSK KUTULARI */
-    .risk-card {
-        border-radius: 16px;
-        padding: 2rem 1.5rem;
-        text-align: center;
-        font-family: 'Syne', sans-serif;
-        font-size: 1.8rem;
-        font-weight: 700;
-        margin: 0.5rem 0 1rem 0;
-        position: relative;
-        overflow: hidden;
-        letter-spacing: -0.02em;
-    }
-    .risk-card::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle at center, rgba(255,255,255,0.04) 0%, transparent 70%);
-        pointer-events: none;
-    }
-    .risk-low  {
-        background: linear-gradient(135deg, #0d2e1e 0%, #0a2018 100%);
-        color: #4ade80;
-        border: 1px solid #1a5c34;
-        box-shadow: 0 0 30px rgba(74,222,128,0.08);
-    }
-    .risk-mid  {
-        background: linear-gradient(135deg, #2e1e04 0%, #251a04 100%);
-        color: #fbbf24;
-        border: 1px solid #5c3d0a;
-        box-shadow: 0 0 30px rgba(251,191,36,0.08);
-    }
-    .risk-high {
-        background: linear-gradient(135deg, #2e0a0a 0%, #200808 100%);
-        color: #f87171;
-        border: 1px solid #5c1414;
-        box-shadow: 0 0 30px rgba(248,113,113,0.12);
-    }
-    .risk-subtitle {
-        font-family: 'Inter', sans-serif;
-        font-size: 0.78rem;
-        font-weight: 400;
-        opacity: 0.7;
-        margin-top: 0.3rem;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-    }
+    .risk-card { border-radius: 16px; padding: 2rem 1.5rem; text-align: center; font-family: 'Syne', sans-serif; font-size: 1.8rem; font-weight: 700; margin: 0.5rem 0 1rem 0; position: relative; overflow: hidden; letter-spacing: -0.02em; }
+    .risk-card::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at center, rgba(255,255,255,0.04) 0%, transparent 70%); pointer-events: none; }
+    .risk-low  { background: linear-gradient(135deg, #0d2e1e 0%, #0a2018 100%); color: #4ade80; border: 1px solid #1a5c34; box-shadow: 0 0 30px rgba(74,222,128,0.08); }
+    .risk-mid  { background: linear-gradient(135deg, #2e1e04 0%, #251a04 100%); color: #fbbf24; border: 1px solid #5c3d0a; box-shadow: 0 0 30px rgba(251,191,36,0.08); }
+    .risk-high { background: linear-gradient(135deg, #2e0a0a 0%, #200808 100%); color: #f87171; border: 1px solid #5c1414; box-shadow: 0 0 30px rgba(248,113,113,0.12); }
+    .risk-subtitle { font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 400; opacity: 0.7; margin-top: 0.3rem; letter-spacing: 0.05em; text-transform: uppercase; }
 
     /* METRİK KARTLARI */
-    .metric-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 10px;
-        margin: 1rem 0;
-    }
-    .metric-box {
-        background: #131929;
-        border: 1px solid #1e2840;
-        border-radius: 12px;
-        padding: 1rem 0.75rem;
-        text-align: center;
-    }
-    .metric-val {
-        font-family: 'Syne', sans-serif;
-        font-size: 1.6rem;
-        font-weight: 700;
-        color: #ffffff;
-        line-height: 1;
-    }
-    .metric-lbl {
-        font-family: 'DM Mono', monospace;
-        font-size: 0.65rem;
-        color: #4a5568;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-top: 0.3rem;
-    }
+    .metric-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 1rem 0; }
+    .metric-box { background: #131929; border: 1px solid #1e2840; border-radius: 12px; padding: 1rem 0.75rem; text-align: center; }
+    .metric-val { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 700; color: #ffffff; line-height: 1; }
+    .metric-lbl { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #4a5568; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.3rem; }
 
-    /* OLASIILIK BARLARI */
+    /* OLASILIK BARLARI */
     .prob-bar-container { margin: 1.2rem 0; }
-    .prob-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 10px;
-    }
-    .prob-label {
-        font-family: 'DM Mono', monospace;
-        font-size: 0.72rem;
-        color: #8892a4;
-        width: 60px;
-        flex-shrink: 0;
-    }
-    .prob-bar-bg {
-        flex: 1;
-        background: #1a2035;
-        border-radius: 4px;
-        height: 8px;
-        overflow: hidden;
-    }
-    .prob-bar-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: width 0.5s ease;
-    }
-    .prob-pct {
-        font-family: 'DM Mono', monospace;
-        font-size: 0.72rem;
-        color: #c8cdd8;
-        width: 40px;
-        text-align: right;
-    }
+    .prob-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .prob-label { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: #8892a4; width: 60px; flex-shrink: 0; }
+    .prob-bar-bg { flex: 1; background: #1a2035; border-radius: 4px; height: 8px; overflow: hidden; }
+    .prob-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+    .prob-pct { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: #c8cdd8; width: 40px; text-align: right; }
 
     /* BÖLÜM BAŞLIKLARI */
-    .section-title {
-        font-family: 'DM Mono', monospace;
-        font-size: 0.68rem;
-        color: #4a5568;
-        text-transform: uppercase;
-        letter-spacing: 0.15em;
-        margin: 1.5rem 0 0.75rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #1a2035;
-    }
+    .section-title { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #4a5568; text-transform: uppercase; letter-spacing: 0.15em; margin: 1.5rem 0 0.75rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid #1a2035; }
 
     /* ÖNERİ KUTUSU */
-    .oneri-box {
-        background: #131929;
-        border: 1px solid #1e2840;
-        border-left: 3px solid #4a90a4;
-        border-radius: 8px;
-        padding: 0.9rem 1rem;
-        font-family: 'Inter', sans-serif;
-        font-size: 0.85rem;
-        color: #9ba8bc;
-        line-height: 1.6;
-        margin: 0.75rem 0;
-    }
+    .oneri-box { background: #131929; border: 1px solid #1e2840; border-left: 3px solid #4a90a4; border-radius: 8px; padding: 0.9rem 1rem; font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #9ba8bc; line-height: 1.6; margin: 0.75rem 0; }
 
     /* SIDEBAR STİL */
-    .sidebar-section {
-        font-family: 'DM Mono', monospace;
-        font-size: 0.65rem;
-        color: #3a4a6a !important;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        margin: 1.2rem 0 0.5rem 0;
-        padding-bottom: 0.4rem;
-        border-bottom: 1px solid #1e2535;
-    }
+    .sidebar-section { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #3a4a6a !important; text-transform: uppercase; letter-spacing: 0.12em; margin: 1.2rem 0 0.5rem 0; padding-bottom: 0.4rem; border-bottom: 1px solid #1e2535; }
 
     /* FAKTÖR BADGE */
-    .factor-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin: 0.75rem 0;
-    }
-    .factor-badge {
-        font-family: 'DM Mono', monospace;
-        font-size: 0.68rem;
-        padding: 4px 10px;
-        border-radius: 20px;
-        letter-spacing: 0.04em;
-    }
+    .factor-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.75rem 0; }
+    .factor-badge { font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 4px 10px; border-radius: 20px; letter-spacing: 0.04em; }
     .factor-danger { background:#2e0a0a; color:#f87171; border:1px solid #5c1414; }
     .factor-warn   { background:#2e1e04; color:#fbbf24; border:1px solid #5c3d0a; }
     .factor-ok     { background:#0d2e1e; color:#4ade80; border:1px solid #1a5c34; }
 
     /* GENEL STİL */
-    .stButton button {
-        background: linear-gradient(135deg, #1e3a5f 0%, #162d4a 100%) !important;
-        color: #7eb8d4 !important;
-        border: 1px solid #2a4f74 !important;
-        border-radius: 10px !important;
-        font-family: 'DM Mono', monospace !important;
-        font-size: 0.82rem !important;
-        letter-spacing: 0.08em !important;
-        text-transform: uppercase !important;
-        padding: 0.6rem 1rem !important;
-        transition: all 0.2s ease !important;
-    }
-    .stButton button:hover {
-        background: linear-gradient(135deg, #254878 0%, #1e3d60 100%) !important;
-        border-color: #3a6a94 !important;
-        color: #a8d4e8 !important;
-    }
-    div[data-testid="stMetric"] {
-        background: #131929;
-        border: 1px solid #1e2840;
-        border-radius: 10px;
-        padding: 0.75rem;
-    }
-    .stExpander {
-        background: #131929 !important;
-        border: 1px solid #1e2840 !important;
-        border-radius: 10px !important;
-    }
+    .stButton button { background: linear-gradient(135deg, #1e3a5f 0%, #162d4a 100%) !important; color: #7eb8d4 !important; border: 1px solid #2a4f74 !important; border-radius: 10px !important; font-family: 'DM Mono', monospace !important; font-size: 0.82rem !important; letter-spacing: 0.08em !important; text-transform: uppercase !important; padding: 0.6rem 1rem !important; transition: all 0.2s ease !important; }
+    .stButton button:hover { background: linear-gradient(135deg, #254878 0%, #1e3d60 100%) !important; border-color: #3a6a94 !important; color: #a8d4e8 !important; }
+    div[data-testid="stMetric"] { background: #131929; border: 1px solid #1e2840; border-radius: 10px; padding: 0.75rem; }
+    .stExpander { background: #131929 !important; border: 1px solid #1e2840 !important; border-radius: 10px !important; }
 
     /* Streamlit elementlerini gizle */
     #MainMenu, footer, header { visibility: hidden; }
@@ -281,17 +104,17 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     try:
-        model  = joblib.load("trafik_risk_modeli.joblib")
-        scaler = joblib.load("trafik_scaler.joblib")
-        return model, scaler
+        m = joblib.load("trafik_risk_modeli.joblib")
+        s = joblib.load("trafik_scaler.joblib")
+        return m, s
     except FileNotFoundError:
-        st.error("Model dosyaları bulunamadı! 'trafik_risk_modeli.joblib' ve 'trafik_scaler.joblib' bu klasörde olmalı.")
+        st.error("Model dosyaları bulunamadı! 'trafik_risk_modeli.joblib' ve 'trafik_scaler.joblib' çalışma dizininde olmalı.")
         st.stop()
 
 model, scaler = load_model()
 
 # =============================================================================
-# HAVA VERİSİ
+# HAVA VERİSİ (Hata Yakalama Güçlendirildi)
 # =============================================================================
 def get_weather(lat, lon):
     try:
@@ -302,16 +125,18 @@ def get_weather(lat, lon):
                 "current": "temperature_2m,precipitation,weathercode,windspeed_10m,visibility",
                 "timezone": "auto"
             }, timeout=5
-        ).json()
-        c = r["current"]
+        )
+        r.raise_for_status() # HTTP 400/500 hatalarını yakalar
+        c = r.json()["current"]
         return {
-            "temperature"  : c["temperature_2m"],
-            "precipitation": c.get("precipitation", 0.0),
-            "wind_speed"   : c["windspeed_10m"],
-            "visibility"   : round(c.get("visibility", 16093), 0),
-            "weather_code" : c["weathercode"]
+            "temperature"  : float(c.get("temperature_2m", 15.0)),
+            "precipitation": float(c.get("precipitation", 0.0)),
+            "wind_speed"   : float(c.get("windspeed_10m", 0.0)),
+            "visibility"   : float(round(c.get("visibility", 16093), 0)),
+            "weather_code" : int(c.get("weathercode", 0))
         }
-    except:
+    except requests.exceptions.RequestException as e:
+        st.sidebar.error(f"Hava durumu servisine erişilemedi.")
         return None
 
 def weather_code_to_group(code):
@@ -365,7 +190,6 @@ def build_features(p):
     return df
 
 def get_risk_factors(p):
-    """Hangi faktörler riski etkiliyor"""
     factors = []
     wg = p["weather_group"]
     if wg == 3: factors.append(("Yağmur", "danger"))
@@ -373,10 +197,12 @@ def get_risk_factors(p):
     elif wg == 2: factors.append(("Sis", "danger"))
     elif wg == 1: factors.append(("Bulutlu", "warn"))
     else: factors.append(("Açık hava", "ok"))
+    
     hour = p["hour"]
     if hour < 6 or hour >= 20: factors.append(("Gece", "danger"))
     elif hour in [7,8,9,16,17,18]: factors.append(("Rush hour", "warn"))
     else: factors.append(("Normal saat", "ok"))
+    
     if p["visibility"] < 5: factors.append(("Düşük görüş", "danger"))
     if c_to_f(p["temperature"]) < 32: factors.append(("Don riski", "danger"))
     if p["is_highway"]: factors.append(("Otoyol", "warn"))
@@ -407,31 +233,47 @@ def predict_risk(params, threshold=0.40):
     }
 
 # =============================================================================
+# ŞEHİR LİSTESİ VE CALLBACK
+# =============================================================================
+IL = {
+    "Samsun":(41.2867,36.3300), "İstanbul":(41.0082,28.9784),
+    "Ankara":(39.9334,32.8597), "İzmir":(38.4189,27.1287),
+    "Artvin":(41.1828,41.8183), "Rize":(41.0201,40.5234),
+    "Trabzon":(41.0015,39.7178),"Erzurum":(39.9043,41.2679),
+    "Bursa":(40.1885,29.0610),  "Antalya":(36.8969,30.7133),
+    "Çorum":(40.549946, 34.953787),
+    "Manuel":None,
+}
+
+def on_il_change():
+    secilen = st.session_state.il_sec
+    if secilen != "Manuel":
+        st.session_state.lat, st.session_state.lon = IL[secilen]
+        st.session_state.pred_result = None # İl değişince eski tahmini temizle
+
+# =============================================================================
 # SIDEBAR
 # =============================================================================
 with st.sidebar:
     st.markdown('<div style="font-family:Syne,sans-serif;font-size:1.3rem;font-weight:800;color:#fff;margin-bottom:0.2rem">🛣 RiskRadar</div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:#3a6a8a;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:1rem">Yol Risk Analizi v3.0</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:DM Mono,monospace;font-size:0.62rem;color:#3a6a8a;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:1rem">Yol Risk Analizi v3.1</div>', unsafe_allow_html=True)
     st.divider()
 
     st.markdown('<div class="sidebar-section">📍 Konum</div>', unsafe_allow_html=True)
-    IL = {
-        "Samsun":(41.2867,36.3300),"İstanbul":(41.0082,28.9784),
-        "Ankara":(39.9334,32.8597),"İzmir":(38.4189,27.1287),
-        "Artvin":(41.1828,41.8183),"Rize":(41.0201,40.5234),
-        "Trabzon":(41.0015,39.7178),"Erzurum":(39.9043,41.2679),
-        "Bursa":(40.1885,29.0610),"Antalya":(36.8969,30.7133),
-        "Manuel":None,
-    }
-    il_sec = st.selectbox("İl", list(IL.keys()), label_visibility="collapsed")
-    if il_sec == "Manuel":
-        lat = st.number_input("Enlem", value=41.29, format="%.4f")
-        lon = st.number_input("Boylam", value=36.33, format="%.4f")
+    
+    st.selectbox("İl", list(IL.keys()), key="il_sec", on_change=on_il_change, label_visibility="collapsed")
+    
+    if st.session_state.il_sec == "Manuel":
+        # Manuel modda doğrudan session_state'i bağlayarak dinamik güncellemeyi sağlıyoruz.
+        lat = st.number_input("Enlem", key="lat", format="%.4f")
+        lon = st.number_input("Boylam", key="lon", format="%.4f")
     else:
-        lat, lon = IL[il_sec]
+        lat, lon = st.session_state.lat, st.session_state.lon
 
     st.markdown('<div class="sidebar-section">🌤 Hava Durumu</div>', unsafe_allow_html=True)
     otomatik = st.toggle("Otomatik (Open-Meteo)", value=True)
+    
+    hava_basarili = False
     if otomatik:
         hava = get_weather(lat, lon)
         if hava:
@@ -451,10 +293,11 @@ with st.sidebar:
             temperature=hava["temperature"]; precipitation=hava["precipitation"]
             wind_speed=hava["wind_speed"]; visibility=hava["visibility"]
             weather_group=wg
+            hava_basarili = True
         else:
-            st.warning("API erişilemedi — manuel girin")
-            otomatik = False
-    if not otomatik:
+            st.warning("API erişilemedi — Lütfen manuel giriş yapın.")
+            
+    if not hava_basarili:
         temperature   = st.slider("Sıcaklık (°C)", -20, 45, 15)
         precipitation = st.slider("Yağış (mm)", 0.0, 50.0, 0.0, 0.5)
         wind_speed    = st.slider("Rüzgar (km/h)", 0, 100, 20)
@@ -482,19 +325,21 @@ with st.sidebar:
     pressure = st.slider("Basınç (in Hg)", 28.0, 31.0, 29.92, 0.01)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    tahmin_btn = st.button("▶ ANALİZ YAP", use_container_width=True, type="primary")
+    
+    # Parametreleri bir araya toplayalım
+    params = {
+        "hour":saat,"month":month,"day_of_week":day_of_week,
+        "temperature":temperature,"precipitation":precipitation,
+        "wind_speed":wind_speed,"visibility":visibility,
+        "weather_group":weather_group,"humidity":humidity,"pressure":pressure,
+        "junction":junction,"traffic_signal":traffic_signal,
+        "crossing":crossing,"stop":stop_sign,"is_highway":is_highway,
+    }
 
-# =============================================================================
-# PARAMS
-# =============================================================================
-params = {
-    "hour":saat,"month":month,"day_of_week":day_of_week,
-    "temperature":temperature,"precipitation":precipitation,
-    "wind_speed":wind_speed,"visibility":visibility,
-    "weather_group":weather_group,"humidity":humidity,"pressure":pressure,
-    "junction":junction,"traffic_signal":traffic_signal,
-    "crossing":crossing,"stop":stop_sign,"is_highway":is_highway,
-}
+    if st.button("▶ ANALİZ YAP", use_container_width=True, type="primary"):
+        # Tahmin yap ve Session State'e kaydet (Sayfa yenilense bile kaybolmasın)
+        st.session_state.pred_result = predict_risk(params, threshold=0.40)
+
 
 # =============================================================================
 # ANA SAYFA
@@ -506,34 +351,41 @@ col_map, col_res = st.columns([1.6, 1], gap="medium")
 
 # --- SOL: HARİTA ---
 with col_map:
-    st.markdown('<div class="section-title">Konum Haritası</div>', unsafe_allow_html=True)
-    m = folium.Map(location=[lat,lon], zoom_start=11, tiles="CartoDB dark_matter")
+    st.markdown('<div class="section-title">Konum Haritası (Tıklayarak Konum Seçebilirsiniz)</div>', unsafe_allow_html=True)
+    m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=11, tiles="CartoDB dark_matter")
     folium.CircleMarker(
-        [lat,lon], radius=10,
+        [st.session_state.lat, st.session_state.lon], radius=10,
         color="#4a90a4", fill=True, fill_color="#4a90a4", fill_opacity=0.8,
-        popup=f"<b>{il_sec}</b>", tooltip=f"{il_sec}"
+        popup=f"<b>{st.session_state.il_sec}</b>", tooltip="Mevcut Konum"
     ).add_to(m)
     folium.CircleMarker(
-        [lat,lon], radius=25,
+        [st.session_state.lat, st.session_state.lon], radius=25,
         color="#4a90a4", fill=True, fill_color="#4a90a4", fill_opacity=0.15,
     ).add_to(m)
+    
     map_data = st_folium(m, width="100%", height=420, returned_objects=["last_clicked"])
+    
+    # Haritaya Tıklama Etkileşimi (UX İyileştirmesi)
     if map_data and map_data.get("last_clicked"):
         clat = map_data["last_clicked"]["lat"]
         clon = map_data["last_clicked"]["lng"]
-        st.markdown(
-            f'<div class="oneri-box">📌 Seçilen: {clat:.4f}°N, {clon:.4f}°E — Sidebar\'dan "Manuel" seçerek bu koordinatı girebilirsiniz.</div>',
-            unsafe_allow_html=True
-        )
+        
+        # Sadece yeni bir yere tıklandıysa sayfayı yenile ve state'i güncelle
+        if st.session_state.last_clicked_coord != (clat, clon):
+            st.session_state.last_clicked_coord = (clat, clon)
+            st.session_state.il_sec = "Manuel"
+            st.session_state.lat = clat
+            st.session_state.lon = clon
+            st.session_state.pred_result = None # Yeni konum, eski tahmini sıfırla
+            st.rerun() # UI'ı yeni koordinatlara göre güncelle
 
 # --- SAĞ: TAHMİN ---
 with col_res:
     st.markdown('<div class="section-title">Risk Tahmini</div>', unsafe_allow_html=True)
 
-    if tahmin_btn:
-        with st.spinner(""):
-            sonuc = predict_risk(params, threshold=0.40)
+    sonuc = st.session_state.pred_result
 
+    if sonuc is not None:
         # Ana risk kutusu
         st.markdown(f"""
         <div class="risk-card {sonuc['css_class']}">
@@ -548,15 +400,15 @@ with col_res:
         <div class="metric-row">
             <div class="metric-box">
                 <div class="metric-val" style="color:#4ade80">%{p[0]*100:.0f}</div>
-                <div class="metric-lbl">Düşük</div>
+                <div class="metric-lbl">Hafif Ölçekli Kaza</div>
             </div>
             <div class="metric-box">
                 <div class="metric-val" style="color:#fbbf24">%{p[1]*100:.0f}</div>
-                <div class="metric-lbl">Orta</div>
+                <div class="metric-lbl">Orta Ölçekli Kaza</div>
             </div>
             <div class="metric-box">
                 <div class="metric-val" style="color:#f87171">%{p[2]*100:.0f}</div>
-                <div class="metric-lbl">Yüksek</div>
+                <div class="metric-lbl">Ölümcül Kaza</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -565,17 +417,17 @@ with col_res:
         st.markdown(f"""
         <div class="prob-bar-container">
             <div class="prob-row">
-                <span class="prob-label">Düşük</span>
+                <span class="prob-label">HAFİF ÖLÇEKLİ KAZA</span>
                 <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:{p[0]*100:.1f}%;background:#4ade80"></div></div>
                 <span class="prob-pct">%{p[0]*100:.1f}</span>
             </div>
             <div class="prob-row">
-                <span class="prob-label">Orta</span>
+                <span class="prob-label">ORTA ÖLÇEKLİ KAZA</span>
                 <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:{p[1]*100:.1f}%;background:#fbbf24"></div></div>
                 <span class="prob-pct">%{p[1]*100:.1f}</span>
             </div>
             <div class="prob-row">
-                <span class="prob-label">Yüksek</span>
+                <span class="prob-label">ÖLÜMCÜL KAZA</span>
                 <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:{p[2]*100:.1f}%;background:#f87171"></div></div>
                 <span class="prob-pct">%{p[2]*100:.1f}</span>
             </div>
@@ -617,9 +469,9 @@ with col_res:
                 Analiz için hazır
             </div>
             <div style="font-family:DM Mono,monospace;font-size:0.7rem;color:#2d3748;line-height:2">
-                1. Sol panelden il seçin<br>
-                2. Hava verisi otomatik gelir<br>
-                3. Zaman ve yol özelliklerini ayarlayın<br>
+                1. Sol panelden il seçin veya Haritaya Tıklayın<br>
+                2. Hava verisi otomatik çekilir<br>
+                3. Yol özelliklerini ayarlayın<br>
                 4. ANALİZ YAP butonuna basın
             </div>
         </div>
@@ -640,6 +492,7 @@ NOKTALAR = [
     {"il":"Rize — Sahil",     "lat":41.02,"lon":40.52,"is_highway":0,"junction":0,"traffic_signal":1,"crossing":0,"stop":0},
     {"il":"Bursa — O-5",      "lat":40.18,"lon":29.06,"is_highway":1,"junction":0,"traffic_signal":0,"crossing":0,"stop":0},
     {"il":"Antalya — D400",   "lat":36.90,"lon":30.71,"is_highway":0,"junction":1,"traffic_signal":1,"crossing":0,"stop":0},
+    {"il":"Çorum — Merkez",   "lat":40.54,"lon":34.95,"is_highway":0,"junction":1,"traffic_signal":1,"crossing":1,"stop":1},
 ]
 
 harita = folium.Map(location=[39.5,35.5], zoom_start=6, tiles="CartoDB dark_matter")
